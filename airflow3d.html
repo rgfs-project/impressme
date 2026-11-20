@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PC Airflow 3D</title>
+<style>
+  :root{--panel:rgba(12,14,22,.88);--ink:#e8ecf5;--muted:#8a93a8;--accent:#7cf5d0;--line:rgba(255,255,255,.08);--hot:#ff6b5b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#07080d;color:var(--ink);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  canvas.dragging{cursor:grabbing}
+  #panel{position:fixed;top:16px;left:16px;width:292px;max-height:calc(100% - 32px);overflow:auto;
+    background:var(--panel);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  #panel::-webkit-scrollbar{width:6px}
+  #panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
+  h1{font-size:16px;margin:0 0 2px;letter-spacing:.03em;font-weight:650}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:18px 0 8px;font-weight:600}
+  .ctl{margin:9px 0}
+  .ctl .top{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-bottom:4px}
+  .ctl .top b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;
+    background:linear-gradient(90deg,var(--accent) var(--p,50%),#262b3b var(--p,50%));outline:none;margin:0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(124,245,208,.18);cursor:pointer}
+  select{width:100%;background:#151824;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit}
+  .check{display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer}
+  .check input{accent-color:var(--accent);width:15px;height:15px;margin:0}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+  button{background:#171b2a;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#1f2437;border-color:rgba(124,245,208,.4)}
+  button.primary{background:linear-gradient(135deg,#7cf5d0,#8fb8ff);color:#06101a;border:0;font-weight:600}
+  .trow{display:grid;grid-template-columns:44px 1fr 56px;gap:8px;align-items:center;margin:7px 0;font-size:12px}
+  .bar{height:8px;border-radius:4px;background:#1a1f2e;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:4px;transition:width .2s}
+  .tv{text-align:right;font-variant-numeric:tabular-nums}
+  .tv.hot{color:var(--hot);font-weight:600}
+  .warn{margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(255,107,91,.12);color:#ffb3a8;font-size:12px;display:none}
+  .legend{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;margin-top:10px}
+  .grad{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,hsl(240,85%,60%),hsl(180,85%,55%),hsl(60,90%,55%),hsl(0,90%,58%))}
+  #hint{position:fixed;right:16px;bottom:14px;color:rgba(232,236,245,.55);font-size:12px;text-align:right;pointer-events:none;font-variant-numeric:tabular-nums;text-shadow:0 1px 8px #000}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<aside id="panel">
+  <h1>PC Airflow 3D</h1>
+  <div class="sub">Drag to orbit, scroll to zoom. Air is pulled in by the front and bottom fans, heated by components, and pushed out the rear and top. Qualitative model, not CFD.</div>
+
+  <h2>Fans</h2>
+  <div id="fanCtl"></div>
+  <label class="check"><input id="dust" type="checkbox"> Dusty filters (halves intake)</label>
+  <label class="check"><input id="showFans" type="checkbox" checked> Show fan blades</label>
+
+  <h2>Component load</h2>
+  <div id="loadCtl"></div>
+
+  <h2>Display</h2>
+  <select id="colorBy" aria-label="Color air by"></select>
+  <div class="legend"><span>Cool</span><div class="grad"></div><span>Hot</span></div>
+  <label class="check"><input id="showCase" type="checkbox" checked> Show case panels</label>
+
+  <h2>Temperatures</h2>
+  <div id="temps"></div>
+  <div class="warn" id="warn">Thermal throttling: a component is above 85 °C.</div>
+
+  <div class="btns">
+    <button id="pause">Pause</button>
+    <button id="reset" class="primary">Reset air</button>
+    <button id="view" style="grid-column:1/3">Reset view</button>
+  </div>
+</aside>
+<div id="hint"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Geometry (cm). x: left/right, y: up, z: 0 = front, 47 = rear ----- */
+const CASE = { x0: -11.5, x1: 11.5, y0: 0, y1: 46, z0: 0, z1: 47 };
+const TARGET = [0, 23, 23.5];
+
+const FANS = [
+  // center, axis (air direction), radius, kind, power
+  { id: 'Front top',    c: [0, 34, 0.6],  a: [0, 0, 1],  r: 7, kind: 'intake',  p: 1.0, spin: 1 },
+  { id: 'Front bottom', c: [0, 17, 0.6],  a: [0, 0, 1],  r: 7, kind: 'intake',  p: 1.0, spin: 1 },
+  { id: 'Top',          c: [0, 46.6, 20], a: [0, 1, 0],  r: 7, kind: 'exhaust', p: 1.0, spin: -1 },
+  { id: 'Rear',         c: [0, 36, 47.4], a: [0, 0, 1],  r: 6, kind: 'exhaust', p: 1.0, spin: -1 },
+  { id: 'Bottom PSU',   c: [0, 0.4, 16],  a: [0, 1, 0],  r: 8, kind: 'intake',  p: 0.6, spin: 1 }
+];
+
+const COMPS = [
+  { id: 'GPU', min: [-4, 14, 20], max: [8, 24, 44], watts: 300, k: 0.14, T: 45 },
+  { id: 'CPU', min: [-6, 26, 14], max: [-1, 38, 22], watts: 125, k: 0.20, T: 40 },
+  { id: 'PSU', min: [-9, 1, 27],  max: [9, 13, 46],  watts: 150, k: 0.10, T: 35 },
+  { id: 'RAM', min: [-6, 30, 6],  max: [-4, 40, 10], watts: 15,  k: 0.30, T: 30 }
+];
+const AMBIENT = 25, WARN_T = 85;
+const SIM_SPEED = 25;     // cm/s at field strength 1
+const N = 3200;
+
+/* ---------- State ----------------------------------------------------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const trail = document.createElement('canvas');
+const tctx = trail.getContext('2d');
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+let W = 0, H = 0, focal = 800;
+const view = { yaw: 0.6, pitch: 0.22, dist: 150 };
+const state = { fanSpeed: 0.8, dust: false, paused: false, colorBy: 'temp', showFans: true, showCase: true };
+const fanLoad = {}; FANS.forEach(f => fanLoad[f.id] = f.p);
+const fanOn = {}; FANS.forEach(f => fanOn[f.id] = true);
+const fanAngle = FANS.map(() => 0);
+
+const PX = new Float64Array(N), PY = new Float64Array(N), PZ = new Float64Array(N);
+const PT = new Float64Array(N), PS = new Float64Array(N);
+const samp = COMPS.map(() => ({ sp: 0, t: 0, n: 0 }));
+
+/* ---------- Setup ----------------------------------------------------- */
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  for (const c of [canvas, trail]) {
+    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  focal = Math.min(W, H) * 1.25;
+  clearAll();
+}
+function clearAll() {
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#07080d';
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ---------- Projection ----------------------------------------------- */
+// Returns [screenX, screenY, depth, scale] or null when behind the camera.
+function project(x, y, z) {
+  let px = x - TARGET[0], py = y - TARGET[1], pz = z - TARGET[2];
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
+  const x1 = px * cy + pz * sy, z1 = -px * sy + pz * cy;
+  const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const y2 = py * cp - z1 * sp, z2 = py * sp + z1 * cp;
+  const depth = view.dist + z2;
+  if (depth < 5) return null;
+  const s = focal / depth;
+  return [W / 2 + x1 * s, H / 2 - y2 * s, depth, s];
+}
+
+/* ---------- Physics --------------------------------------------------- */
+let fx = 0, fy = 0, fz = 0;
+function field(x, y, z) {
+  fx = fy = fz = 0;
+  for (const f of FANS) {
+    if (!fanOn[f.id]) continue;
+    const mult = (f.kind === 'intake' && state.dust ? 0.5 : 1) * state.fanSpeed * fanLoad[f.id];
+    const dx = x - f.c[0], dy = y - f.c[1], dz = z - f.c[2];
+    const s = dx * f.a[0] + dy * f.a[1] + dz * f.a[2];           // along the axis
+    const px = dx - s * f.a[0], py = dy - s * f.a[1], pz = dz - s * f.a[2];
+    const sig = f.r * 0.9;
+    const g = Math.exp(-(px * px + py * py + pz * pz) / (2 * sig * sig)) * Math.exp(-Math.abs(s) / (f.r * 2));
+    fx += f.a[0] * mult * g; fy += f.a[1] * mult * g; fz += f.a[2] * mult * g;
+  }
+}
+
+function insideBox(b, x, y, z) {
+  return x >= b.min[0] && x <= b.max[0] && y >= b.min[1] && y <= b.max[1] && z >= b.min[2] && z <= b.max[2];
+}
+
+function respawn(i) {
+  if (Math.random() < 0.7) {           // through the front mesh
+    PX[i] = rnd(-10, 10); PY[i] = rnd(4, 44); PZ[i] = 0.3;
+  } else {                              // through the bottom PSU intake
+    PX[i] = rnd(-9, 9); PY[i] = 0.3; PZ[i] = rnd(2, 24);
+  }
+  PT[i] = AMBIENT;
+}
+
+function stepParticles(dt) {
+  for (const s of samp) { s.sp = 0; s.t = 0; s.n = 0; }
+  for (let i = 0; i < N; i++) {
+    let x = PX[i], y = PY[i], z = PZ[i];
+    if (x < CASE.x0 || x > CASE.x1 || y < CASE.y0 || y > CASE.y1 || z < CASE.z0 || z > CASE.z1) {
+      respawn(i); x = PX[i]; y = PY[i]; z = PZ[i];
+    }
+    field(x, y, z);
+    let vx = fx * SIM_SPEED, vy = fy * SIM_SPEED, vz = fz * SIM_SPEED;
+    const jitter = 0.8 * state.fanSpeed;
+    vx += (Math.random() - 0.5) * jitter; vy += (Math.random() - 0.5) * jitter; vz += (Math.random() - 0.5) * jitter;
+
+    let blocked = null;
+    for (const c of COMPS) if (insideBox(c, x, y, z)) { blocked = c; break; }
+    if (blocked) { vx *= 0.2; vy *= 0.2; vz *= 0.2; }
+
+    let nx = x + vx * dt, ny = y + vy * dt, nz = z + vz * dt;
+
+    // Push out of any component entered this step, along the nearest face.
+    for (const c of COMPS) {
+      if (!insideBox(c, nx, ny, nz)) continue;
+      const d = [nx - c.min[0], c.max[0] - nx, ny - c.min[1], c.max[1] - ny, nz - c.min[2], c.max[2] - nz];
+      let m = 0; for (let j = 1; j < 6; j++) if (d[j] < d[m]) m = j;
+      const e = 0.01;
+      if (m === 0) nx = c.min[0] - e; else if (m === 1) nx = c.max[0] + e;
+      else if (m === 2) ny = c.min[1] - e; else if (m === 3) ny = c.max[1] + e;
+      else if (m === 4) nz = c.min[2] - e; else nz = c.max[2] + e;
+    }
+
+    PX[i] = nx; PY[i] = ny; PZ[i] = nz;
+    const sp = Math.hypot(vx, vy, vz);
+    PS[i] = sp;
+
+    if (blocked) PT[i] += (blocked.T - PT[i]) * Math.min(1, 5 * dt);
+
+    // Collect the air around each component (shell outside the box).
+    for (let k = 0; k < COMPS.length; k++) {
+      const c = COMPS[k], m = 2.5;
+      if (nx >= c.min[0] - m && nx <= c.max[0] + m && ny >= c.min[1] - m && ny <= c.max[1] + m &&
+          nz >= c.min[2] - m && nz <= c.max[2] + m && !insideBox(c, nx, ny, nz)) {
+        samp[k].sp += sp; samp[k].t += PT[i]; samp[k].n++;
+      }
+    }
+  }
+}
+
+function stepComponents(dt) {
+  COMPS.forEach((c, k) => {
+    const s = samp[k];
+    const flow = s.n ? s.sp / s.n : 0;
+    const flowNorm = clamp(flow / (SIM_SPEED * 0.15), 0, 2);
+    const air = s.n ? s.t / s.n : AMBIENT;
+    const target = air + c.watts * (c.k / (0.2 + flowNorm));
+    c.T += (target - c.T) * (1 - Math.exp(-dt / 2.5));
+  });
+}
+
+/* ---------- Drawing helpers ------------------------------------------- */
+function tempHue(t) { return 240 - clamp((t - AMBIENT) / (95 - AMBIENT), 0, 1) * 240; }
+function speedHue(s) { return 200 - clamp(s / (SIM_SPEED * 0.8), 0, 1) * 160; }
+
+function line3(a, b, color, w = 1) {
+  const p = project(...a), q = project(...b);
+  if (!p || !q) return;
+  ctx.strokeStyle = color; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+}
+function quad3(pts, fill) {
+  const pr = pts.map(p => project(...p));
+  if (pr.some(v => !v)) return;
+  ctx.beginPath();
+  ctx.moveTo(pr[0][0], pr[0][1]);
+  for (let i = 1; i < pr.length; i++) ctx.lineTo(pr[i][0], pr[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+}
+
+function drawCase() {
+  const { x0, x1, y0, y1, z0, z1 } = CASE;
+  const edge = 'rgba(160,190,255,0.35)';
+  // Corners
+  const v = (x, y, z) => [x, y, z];
+  // Side panel (glass) and top/bottom surfaces, translucent so the inside stays visible
+  if (state.showCase) {
+    quad3([v(x1, y0, z0), v(x1, y1, z0), v(x1, y1, z1), v(x1, y0, z1)], 'rgba(120,150,220,0.05)');
+    quad3([v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], 'rgba(120,150,220,0.035)');
+    quad3([v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1)], 'rgba(120,150,220,0.035)');
+  }
+  // Frame edges
+  const corners = [
+    [x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]
+  ];
+  const E = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+  for (const [a, b] of E) line3(corners[a], corners[b], edge, 1.4);
+
+  // Front intake mesh outline
+  const fm = [[-10,4,0],[10,4,0],[10,44,0],[-10,44,0]];
+  for (let i = 0; i < 4; i++) line3(fm[i], fm[(i + 1) % 4], 'rgba(124,245,208,0.45)', 1);
+  // Rear mesh outline
+  const rm = [[-6,30,z1],[6,30,z1],[6,44,z1],[-6,44,z1]];
+  for (let i = 0; i < 4; i++) line3(rm[i], rm[(i + 1) % 4], 'rgba(255,170,110,0.4)', 1);
+  // Motherboard plate
+  const mb = [[-7.5,2,6],[-7.5,40,6],[-7.5,40,40],[-7.5,2,40]];
+  quad3(mb, 'rgba(60,70,100,0.12)');
+
+  // Axis labels
+  const label = (t, p) => {
+    const q = project(...p);
+    if (!q) return;
+    ctx.fillStyle = 'rgba(232,236,245,0.55)';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(t, q[0], q[1]);
+    ctx.textAlign = 'left';
+  };
+  label('FRONT', [0, 48, -3]);
+  label('REAR', [0, 48, 50]);
+  label('TOP', [0, 50, 22]);
+  label('BOTTOM', [0, -3, 22]);
+}
+
+function drawFans(dt) {
+  FANS.forEach((f, i) => {
+    const mult = (f.kind === 'intake' && state.dust ? 0.5 : 1) * state.fanSpeed * fanLoad[f.id] * (fanOn[f.id] ? 1 : 0);
+    fanAngle[i] += dt * mult * 22 * f.spin;
+    if (!state.showFans) return;
+    // Two in-plane unit vectors perpendicular to the axis.
+    const a = f.a;
+    const u = a[1] !== 0 ? [1, 0, 0] : [0, 1, 0];
+    const v = [a[1] * u[2] - a[2] * u[1], a[2] * u[0] - a[0] * u[2], a[0] * u[1] - a[1] * u[0]];
+    const ring = (rad, n = 40) => {
+      const pts = [];
+      for (let k = 0; k < n; k++) {
+        const t = (k / n) * Math.PI * 2;
+        const ct = Math.cos(t) * rad, st = Math.sin(t) * rad;
+        pts.push([f.c[0] + u[0] * ct + v[0] * st, f.c[1] + u[1] * ct + v[1] * st, f.c[2] + u[2] * ct + v[2] * st]);
+      }
+      return pts;
+    };
+    const col = f.kind === 'intake' ? 'rgba(124,245,208,' : 'rgba(255,170,110,';
+    const ringPts = ring(f.r);
+    ctx.strokeStyle = col + (fanOn[f.id] ? '0.85)' : '0.25)');
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (const p of ringPts) {
+      const q = project(...p);
+      if (!q) continue;
+      if (!started) { ctx.moveTo(q[0], q[1]); started = true; } else ctx.lineTo(q[0], q[1]);
+    }
+    ctx.closePath(); ctx.stroke();
+
+    // Blades: five spokes
+    ctx.strokeStyle = 'rgba(232,236,245,0.35)';
+    ctx.lineWidth = 1.5;
+    for (let b = 0; b < 5; b++) {
+      const th = fanAngle[i] + (b * Math.PI * 2) / 5;
+      const ct = Math.cos(th) * f.r * 0.9, st = Math.sin(th) * f.r * 0.9;
+      const tip = [f.c[0] + u[0] * ct + v[0] * st, f.c[1] + u[1] * ct + v[1] * st, f.c[2] + u[2] * ct + v[2] * st];
+      line3(f.c, tip, 'rgba(232,236,245,0.3)', 1.5);
+    }
+    // Hub
+    const hub = project(...f.c);
+    if (hub) { ctx.fillStyle = 'rgba(232,236,245,0.5)'; ctx.beginPath(); ctx.arc(hub[0], hub[1], 2.5, 0, Math.PI * 2); ctx.fill(); }
+  });
+}
+
+function drawComponents() {
+  // Painter's order: far to near by box center depth.
+  const order = COMPS.map((c, k) => {
+    const cx = (c.min[0] + c.max[0]) / 2, cy = (c.min[1] + c.max[1]) / 2, cz = (c.min[2] + c.max[2]) / 2;
+    const p = project(cx, cy, cz);
+    return { c, depth: p ? p[2] : 0 };
+  }).sort((a, b) => b.depth - a.depth);
+
+  for (const { c } of order) {
+    const hue = tempHue(c.T);
+    const [x0, y0, z0] = c.min, [x1, y1, z1] = c.max;
+    const faces = [
+      [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0]],
+      [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],
+      [[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],
+      [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],
+      [[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[x0,y0,z1]],
+      [[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]]
+    ];
+    for (const f of faces) quad3(f, `hsla(${hue},70%,45%,0.22)`);
+    const edges = [[0,1],[1,2],[2,3],[3,0]];
+    const cs = [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+    const ee = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+    for (const [a, b] of ee) line3(cs[a], cs[b], `hsla(${hue},85%,65%,${c.T > WARN_T ? 0.95 : 0.6})`, c.T > WARN_T ? 2 : 1.2);
+    const mid = project((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    if (mid) {
+      ctx.fillStyle = '#eef3ff';
+      ctx.font = '600 12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${c.id} ${Math.round(c.T)}°`, mid[0], mid[1] + 4);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+function drawParticles(g) {
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < N; i++) {
+    const p = project(PX[i], PY[i], PZ[i]);
+    if (!p) continue;
+    const hue = state.colorBy === 'temp' ? tempHue(PT[i]) : speedHue(PS[i]);
+    const r = clamp(1.6 * p[3] / 1.2, 1.2, 3.2);
+    g.fillStyle = `hsla(${hue},90%,66%,0.7)`;
+    g.fillRect(p[0] - r / 2, p[1] - r / 2, r, r);
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- UI -------------------------------------------------------- */
+function slider(parent, label, min, max, step, value, onInput, fmt) {
+  const wrap = document.createElement('div');
+  wrap.className = 'ctl';
+  const top = document.createElement('div');
+  top.className = 'top';
+  const name = document.createElement('span'); name.textContent = label;
+  const out = document.createElement('b');
+  top.append(name, out);
+  const input = document.createElement('input');
+  input.type = 'range'; input.min = min; input.max = max; input.step = step; input.value = value;
+  const paint = () => {
+    input.style.setProperty('--p', ((input.value - min) / (max - min)) * 100 + '%');
+    out.textContent = fmt(+input.value);
+  };
+  input.addEventListener('input', () => { paint(); onInput(+input.value); });
+  paint();
+  wrap.append(top, input);
+  parent.append(wrap);
+}
+
+function buildUI() {
+  const fanCtl = $('#fanCtl');
+  slider(fanCtl, 'Fan speed (all)', 0, 1, 0.01, state.fanSpeed, (v) => { state.fanSpeed = v; }, (v) => Math.round(v * 100) + '%');
+  for (const f of FANS) {
+    const row = document.createElement('label');
+    row.className = 'check';
+    row.innerHTML = `<input type="checkbox" checked> ${f.id} <span style="color:var(--muted);margin-left:auto">${f.kind}</span>`;
+    row.querySelector('input').addEventListener('change', (e) => { fanOn[f.id] = e.target.checked; });
+    fanCtl.append(row);
+  }
+  $('#dust').addEventListener('change', (e) => { state.dust = e.target.checked; });
+  $('#showFans').addEventListener('change', (e) => { state.showFans = e.target.checked; });
+  $('#showCase').addEventListener('change', (e) => { state.showCase = e.target.checked; });
+
+  const loadCtl = $('#loadCtl');
+  for (const c of COMPS) {
+    slider(loadCtl, c.id + ' power', 0, c.id === 'GPU' ? 450 : 250, 1, c.watts, (v) => { c.watts = v; }, (v) => v + ' W');
+  }
+
+  const sel = $('#colorBy');
+  sel.append(new Option('Color air by temperature', 'temp'));
+  sel.append(new Option('Color air by speed', 'speed'));
+  sel.addEventListener('change', () => { state.colorBy = sel.value; });
+
+  $('#pause').addEventListener('click', (e) => {
+    state.paused = !state.paused;
+    e.target.textContent = state.paused ? 'Play' : 'Pause';
+  });
+  $('#reset').addEventListener('click', resetAir);
+  $('#view').addEventListener('click', () => { view.yaw = 0.6; view.pitch = 0.22; view.dist = 150; });
+
+  const temps = $('#temps');
+  for (const c of COMPS) {
+    const row = document.createElement('div');
+    row.className = 'trow';
+    row.innerHTML = `<span>${c.id}</span><div class="bar"><i></i></div><span class="tv"></span>`;
+    temps.append(row);
+    c.row = row;
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+    if (e.key === ' ') { e.preventDefault(); $('#pause').click(); }
+    if (e.key.toLowerCase() === 'r') resetAir();
+  });
+}
+
+function updateUI() {
+  for (const c of COMPS) {
+    const bar = c.row.querySelector('.bar i');
+    bar.style.width = clamp((c.T - AMBIENT) / (110 - AMBIENT), 0, 1) * 100 + '%';
+    bar.style.background = `hsl(${tempHue(c.T)},80%,58%)`;
+    const tv = c.row.querySelector('.tv');
+    tv.textContent = Math.round(c.T) + ' °C';
+    tv.classList.toggle('hot', c.T > WARN_T);
+  }
+  $('#warn').style.display = COMPS.some(c => c.T > WARN_T) ? 'block' : 'none';
+}
+
+function resetAir() {
+  for (let i = 0; i < N; i++) { respawn(i); PX[i] = rnd(CASE.x0, CASE.x1); PY[i] = rnd(CASE.y0, CASE.y1); PZ[i] = rnd(CASE.z0, CASE.z1); PS[i] = 0; }
+  for (const c of COMPS) c.T = AMBIENT + 10;
+  tctx.clearRect(0, 0, W, H);
+}
+
+/* ---------- Orbit controls -------------------------------------------- */
+let dragging = false, lx = 0, ly = 0;
+canvas.addEventListener('pointerdown', (e) => {
+  dragging = true; lx = e.clientX; ly = e.clientY;
+  canvas.classList.add('dragging'); canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  view.yaw += (e.clientX - lx) * 0.006;
+  view.pitch = clamp(view.pitch + (e.clientY - ly) * 0.006, -1.4, 1.4);
+  lx = e.clientX; ly = e.clientY;
+  tctx.clearRect(0, 0, W, H);   // trails don't survive a camera change
+});
+const endDrag = () => { dragging = false; canvas.classList.remove('dragging'); };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  view.dist = clamp(view.dist * Math.exp(e.deltaY * 0.001), 60, 300);
+}, { passive: false });
+
+/* ---------- Loop ------------------------------------------------------ */
+let last = performance.now(), uiT = 0, fpsF = 0, fpsT = 0;
+const hint = $('#hint');
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (!state.paused) {
+    const sub = 3, h = dt / sub;
+    for (let s = 0; s < sub; s++) { stepParticles(h); stepComponents(h); }
+    tctx.globalCompositeOperation = 'destination-out';
+    tctx.fillStyle = 'rgba(0,0,0,0.1)';
+    tctx.fillRect(0, 0, W, H);
+    drawParticles(tctx);
+    clearAll();
+    ctx.drawImage(trail, 0, 0, W, H);
+    drawCase();
+    drawComponents();
+    drawFans(dt);
+  }
+  uiT += dt;
+  if (uiT > 0.1) { updateUI(); uiT = 0; }
+  fpsF++; fpsT += dt;
+  if (fpsT >= 0.5) { hint.textContent = `${N.toLocaleString()} air parcels · ${Math.round(fpsF / fpsT)} fps`; fpsF = 0; fpsT = 0; }
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize', resize);
+resize();
+buildUI();
+resetAir();
+updateUI();
+requestAnimationFrame((t) => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>
