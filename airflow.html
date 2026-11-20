@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PC Airflow</title>
+<style>
+  :root{--panel:rgba(12,14,22,.86);--ink:#e8ecf5;--muted:#8a93a8;--accent:#7cf5d0;--line:rgba(255,255,255,.08);--hot:#ff6b5b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#07080d;color:var(--ink);
+    font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  #panel{position:fixed;top:16px;left:16px;width:290px;max-height:calc(100% - 32px);overflow:auto;
+    background:var(--panel);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  #panel::-webkit-scrollbar{width:6px}
+  #panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
+  h1{font-size:16px;margin:0 0 2px;letter-spacing:.03em;font-weight:650}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:18px 0 8px;font-weight:600}
+  .ctl{margin:9px 0}
+  .ctl .top{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-bottom:4px}
+  .ctl .top b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;
+    background:linear-gradient(90deg,var(--accent) var(--p,50%),#262b3b var(--p,50%));outline:none;margin:0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 0 0 4px rgba(124,245,208,.18);cursor:pointer}
+  select{width:100%;background:#151824;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit}
+  .check{display:flex;align-items:center;gap:8px;margin:10px 0;color:var(--ink);cursor:pointer}
+  .check input{accent-color:var(--accent);width:15px;height:15px;margin:0}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+  button{background:#171b2a;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#1f2437;border-color:rgba(124,245,208,.4)}
+  button.primary{background:linear-gradient(135deg,#7cf5d0,#8fb8ff);color:#06101a;border:0;font-weight:600}
+  .temps{margin-top:4px}
+  .trow{display:grid;grid-template-columns:52px 1fr 52px;gap:8px;align-items:center;margin:7px 0;font-size:12px}
+  .bar{height:8px;border-radius:4px;background:#1a1f2e;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:4px;transition:width .2s,background .2s}
+  .tv{text-align:right;font-variant-numeric:tabular-nums}
+  .tv.hot{color:var(--hot);font-weight:600}
+  .warn{margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(255,107,91,.12);color:#ffb3a8;font-size:12px;display:none}
+  .legend{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;margin-top:12px}
+  .grad{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,hsl(240,85%,60%),hsl(180,85%,55%),hsl(60,90%,55%),hsl(0,90%,58%))}
+  #hint{position:fixed;right:16px;bottom:14px;color:rgba(232,236,245,.5);font-size:12px;text-align:right;pointer-events:none;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<aside id="panel">
+  <h1>PC Airflow</h1>
+  <div class="sub">Air parcels follow the fan jets, heat up over components, and exit through the exhaust. Qualitative model, not CFD.</div>
+
+  <h2>Fans</h2>
+  <div id="fanCtl"></div>
+  <label class="check"><input id="dust" type="checkbox"> Dusty front filter (halves intake)</label>
+
+  <h2>Component load</h2>
+  <div id="loadCtl"></div>
+
+  <h2>Display</h2>
+  <select id="mode" aria-label="Particle color"></select>
+  <div class="legend"><span>Cool</span><div class="grad"></div><span>Hot</span></div>
+
+  <h2>Temperatures</h2>
+  <div class="temps" id="temps"></div>
+  <div class="warn" id="warn">Thermal throttling: a component is above 85 °C. Add airflow or reduce load.</div>
+
+  <div class="btns">
+    <button id="pause">Pause</button>
+    <button id="reset" class="primary">Reset air</button>
+  </div>
+</aside>
+<div id="hint"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Model constants ------------------------------------------- */
+const AMBIENT = 25;          // °C
+const SIM_SPEED = 0.35;      // case-units per second at field strength 1
+const N = 2600;              // air parcels
+
+// Positions are normalized to the case interior: x 0 = front, 1 = rear; y 0 = top, 1 = bottom.
+const FANS = [
+  { id: 'Front A', x: 0,    y: 0.22, dx: 1,  dy: 0,  r: 0.075, kind: 'intake',  power: 1.0 },
+  { id: 'Front B', x: 0,    y: 0.44, dx: 1,  dy: 0,  r: 0.075, kind: 'intake',  power: 1.0 },
+  { id: 'Front C', x: 0,    y: 0.66, dx: 1,  dy: 0,  r: 0.075, kind: 'intake',  power: 1.0 },
+  { id: 'Rear',    x: 1,    y: 0.30, dx: 1,  dy: 0,  r: 0.11,  kind: 'exhaust', power: 1.0 },
+  { id: 'Top',     x: 0.62, y: 0,    dx: 0,  dy: -1, r: 0.11,  kind: 'exhaust', power: 1.0 },
+  { id: 'Bottom',  x: 0.30, y: 1,    dx: 0,  dy: -1, r: 0.11,  kind: 'intake',  power: 0.7 }
+];
+
+// Thermal resistance k: steady rise = watts * k / (0.2 + local flow).
+const COMPS = [
+  { id: 'GPU', x: 0.20, y: 0.50, w: 0.36, h: 0.20, watts: 300, k: 0.14, T: AMBIENT + 20 },
+  { id: 'CPU', x: 0.56, y: 0.26, w: 0.12, h: 0.14, watts: 125, k: 0.20, T: AMBIENT + 15 },
+  { id: 'PSU', x: 0.70, y: 0.66, w: 0.24, h: 0.26, watts: 150, k: 0.10, T: AMBIENT + 10 },
+  { id: 'RAM', x: 0.47, y: 0.10, w: 0.035, h: 0.26, watts: 15, k: 0.30, T: AMBIENT + 5 }
+];
+const WARN_T = 85;
+
+/* ---------- State ----------------------------------------------------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const trail = document.createElement('canvas');
+const tctx = trail.getContext('2d');
+const $ = (s) => document.querySelector(s);
+let W = 0, H = 0, cx0 = 0, cy0 = 0, cW = 0, cH = 0;
+
+const state = {
+  fanSpeed: 0.8,
+  dust: false,
+  paused: false,
+  colorBy: 'temp'
+};
+const fanLoad = {}; // per-fan power multiplier from UI (indexed by id)
+FANS.forEach(f => fanLoad[f.id] = f.power);
+
+// Air parcels: position, temperature, speed (for coloring)
+const AX = new Float64Array(N), AY = new Float64Array(N), AT = new Float64Array(N), AS = new Float64Array(N);
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+/* ---------- Layout ---------------------------------------------------- */
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  trail.width = canvas.width;
+  trail.height = canvas.height;
+  tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  tctx.clearRect(0, 0, W, H);
+  const areaX = 330, areaW = W - areaX - 30;
+  cH = Math.min(H - 120, areaW / 1.25);
+  cW = cH * 1.25;
+  cx0 = areaX + (areaW - cW) / 2;
+  cy0 = (H - cH) / 2;
+  clearCanvas();
+}
+
+function clearCanvas() {
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#07080d';
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ---------- Physics --------------------------------------------------- */
+// Velocity field: sum of fan jets with a Gaussian across the fan axis and exponential decay along it.
+let fx = 0, fy = 0;
+function field(x, y) {
+  fx = 0; fy = 0;
+  for (const f of FANS) {
+    const p = (f.kind === 'intake' && state.dust ? 0.5 : 1) * state.fanSpeed * fanLoad[f.id];
+    const sx = x - f.x, sy = y - f.y;
+    const s = sx * f.dx + sy * f.dy;                    // distance along the jet axis
+    const px = sx - s * f.dx, py = sy - s * f.dy;        // perpendicular offset
+    const g = Math.exp(-(px * px + py * py) / (2 * f.r * f.r)) * Math.exp(-Math.abs(s) * 2.2);
+    fx += f.dx * p * g;
+    fy += f.dy * p * g;
+  }
+}
+
+function inside(c, x, y) {
+  return x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h;
+}
+
+function respawn(i) {
+  if (Math.random() < 0.7) { AX[i] = 0.004; AY[i] = rand(0.02, 0.98); }      // front intake
+  else { AX[i] = rand(0.15, 0.85); AY[i] = 0.996; }                            // bottom intake
+  AT[i] = AMBIENT;
+}
+
+// Per-component sample accumulators, reset each step.
+const samp = COMPS.map(() => ({ sp: 0, t: 0, n: 0 }));
+
+function stepParticles(dt) {
+  for (const s of samp) { s.sp = 0; s.t = 0; s.n = 0; }
+
+  for (let i = 0; i < N; i++) {
+    let x = AX[i], y = AY[i];
+    if (x < 0 || x > 1 || y < 0 || y > 1) { respawn(i); x = AX[i]; y = AY[i]; }
+
+    field(x, y);
+    let vx = fx * SIM_SPEED, vy = fy * SIM_SPEED;
+    // Turbulence scales with fan load so the air looks alive but calm at low speed.
+    vx += (Math.random() - 0.5) * 0.05 * state.fanSpeed;
+    vy += (Math.random() - 0.5) * 0.05 * state.fanSpeed;
+
+    // Component obstruction: air slows down over hardware and is heated by it.
+    let blocked = null;
+    for (const c of COMPS) if (inside(c, x, y)) { blocked = c; break; }
+    if (blocked) { vx *= 0.2; vy *= 0.2; }
+
+    let nx = x + vx * dt, ny = y + vy * dt;
+
+    // Push out of any component we entered this step (nearest face).
+    for (const c of COMPS) {
+      if (inside(c, nx, ny)) {
+        const dl = nx - c.x, dr = c.x + c.w - nx, dt_ = ny - c.y, db = c.y + c.h - ny;
+        const m = Math.min(dl, dr, dt_, db);
+        if (m === dl) nx = c.x - 1e-4;
+        else if (m === dr) nx = c.x + c.w + 1e-4;
+        else if (m === dt_) ny = c.y - 1e-4;
+        else ny = c.y + c.h + 1e-4;
+      }
+    }
+
+    AX[i] = nx; AY[i] = ny;
+    const sp = Math.hypot(vx, vy);
+    AS[i] = sp;
+
+    // Heat exchange with the component occupying this cell.
+    if (blocked) {
+      AT[i] += (blocked.T - AT[i]) * Math.min(1, 5 * dt);
+    }
+
+    // Accumulate the air that surrounds each component (excluding the component itself).
+    for (let k = 0; k < COMPS.length; k++) {
+      const c = COMPS[k];
+      const m = 0.06;
+      if (nx >= c.x - m && nx <= c.x + c.w + m && ny >= c.y - m && ny <= c.y + c.h + m && !inside(c, nx, ny)) {
+        samp[k].sp += sp; samp[k].t += AT[i]; samp[k].n++;
+      }
+    }
+  }
+}
+
+function stepComponents(dt) {
+  COMPS.forEach((c, k) => {
+    const s = samp[k];
+    const flow = s.n > 0 ? s.sp / s.n : 0;
+    const flowNorm = clamp(flow / (SIM_SPEED * 0.5), 0, 2);
+    const air = s.n > 0 ? s.t / s.n : AMBIENT;
+    const load = c.watts * (c.k / (0.2 + flowNorm));
+    const target = air + load;
+    const tau = 2.5; // seconds to approach steady state
+    c.T += (target - c.T) * (1 - Math.exp(-dt / tau));
+    c.flowNorm = flowNorm;
+    c.air = air;
+  });
+}
+
+/* ---------- Rendering ------------------------------------------------- */
+const fanAngle = FANS.map(() => 0);
+
+function tempHue(t) {
+  // 25 °C = blue (240), 95 °C = red (0)
+  return 240 - clamp((t - AMBIENT) / (95 - AMBIENT), 0, 1) * 240;
+}
+function speedHue(s) {
+  return 200 - clamp(s / (SIM_SPEED * 1.1), 0, 1) * 160;
+}
+
+function drawCase() {
+  const x = cx0, y = cy0, w = cW, h = cH;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(160,190,255,0.35)';
+  ctx.fillStyle = 'rgba(255,255,255,0.015)';
+  roundRect(x, y, w, h, 14);
+  ctx.fill();
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = 'rgba(232,236,245,0.5)';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('FRONT', x + 36, y - 10);
+  ctx.fillText('REAR', x + w - 30, y - 10);
+  ctx.fillText('TOP', x + w * 0.62, y - 10);
+  ctx.textAlign = 'left';
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawComponents() {
+  for (const c of COMPS) {
+    const x = cx0 + c.x * cW, y = cy0 + c.y * cH, w = c.w * cW, h = c.h * cH;
+    const hue = tempHue(c.T);
+    ctx.fillStyle = `hsla(${hue},70%,40%,0.28)`;
+    ctx.strokeStyle = `hsla(${hue},85%,65%,0.85)`;
+    ctx.lineWidth = c.T > WARN_T ? 3 : 1.5;
+    roundRect(x, y, w, h, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    if (w > 40 && h > 26) {
+      ctx.fillStyle = '#eef3ff';
+      ctx.font = '600 12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${c.id} ${Math.round(c.T)}°`, x + w / 2, y + h / 2 + 4);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+function drawFans(dt) {
+  FANS.forEach((f, i) => {
+    const cxp = cx0 + f.x * cW;
+    const cyp = cy0 + f.y * cH;
+    const rad = f.r * Math.min(cW, cH) * 1.1;
+    const p = (f.kind === 'intake' && state.dust ? 0.5 : 1) * state.fanSpeed * fanLoad[f.id];
+    fanAngle[i] += dt * p * 28;
+
+    ctx.strokeStyle = f.kind === 'intake' ? 'rgba(124,245,208,0.7)' : 'rgba(255,170,110,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cxp, cyp, rad, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Blades
+    ctx.strokeStyle = 'rgba(232,236,245,0.35)';
+    ctx.lineWidth = 2;
+    for (let b = 0; b < 5; b++) {
+      const a = fanAngle[i] + (b * Math.PI * 2) / 5;
+      ctx.beginPath();
+      ctx.moveTo(cxp, cyp);
+      ctx.lineTo(cxp + Math.cos(a) * rad * 0.85, cyp + Math.sin(a) * rad * 0.85);
+      ctx.stroke();
+    }
+
+    // Direction arrow showing airflow out of the fan
+    const ax = cxp + f.dx * rad * 1.35, ay = cyp + f.dy * rad * 1.35;
+    ctx.fillStyle = f.kind === 'intake' ? 'rgba(124,245,208,0.8)' : 'rgba(255,170,110,0.85)';
+    ctx.beginPath();
+    const ang = Math.atan2(f.dy, f.dx), hl = 8;
+    ctx.moveTo(ax + Math.cos(ang) * hl, ay + Math.sin(ang) * hl);
+    ctx.lineTo(ax + Math.cos(ang + 2.5) * hl, ay + Math.sin(ang + 2.5) * hl);
+    ctx.lineTo(ax + Math.cos(ang - 2.5) * hl, ay + Math.sin(ang - 2.5) * hl);
+    ctx.fill();
+  });
+}
+
+function drawParticles(g) {
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < N; i++) {
+    const x = cx0 + AX[i] * cW;
+    const y = cy0 + AY[i] * cH;
+    const hue = state.colorBy === 'temp' ? tempHue(AT[i]) : speedHue(AS[i]);
+    g.fillStyle = `hsla(${hue},90%,66%,0.75)`;
+    g.fillRect(x, y, 2, 2);
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- UI -------------------------------------------------------- */
+function slider(parent, label, min, max, step, value, onInput, fmt) {
+  const wrap = document.createElement('div');
+  wrap.className = 'ctl';
+  const top = document.createElement('div');
+  top.className = 'top';
+  const name = document.createElement('span');
+  name.textContent = label;
+  const out = document.createElement('b');
+  top.append(name, out);
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = min; input.max = max; input.step = step; input.value = value;
+  const paint = () => {
+    input.style.setProperty('--p', ((input.value - min) / (max - min)) * 100 + '%');
+    out.textContent = fmt(+input.value);
+  };
+  input.addEventListener('input', () => { paint(); onInput(+input.value); });
+  paint();
+  wrap.append(top, input);
+  parent.append(wrap);
+}
+
+function buildUI() {
+  const fanCtl = $('#fanCtl');
+  slider(fanCtl, 'Fan speed (all)', 0, 1, 0.01, state.fanSpeed, (v) => { state.fanSpeed = v; },
+    (v) => Math.round(v * 100) + '%');
+  for (const f of FANS) {
+    slider(fanCtl, f.id + (f.kind === 'intake' ? ' (intake)' : ' (exhaust)'), 0, 1.5, 0.01, fanLoad[f.id],
+      (v) => { fanLoad[f.id] = v; }, (v) => Math.round(v * 100) + '%');
+  }
+
+  $('#dust').addEventListener('change', (e) => { state.dust = e.target.checked; });
+
+  const loadCtl = $('#loadCtl');
+  for (const c of COMPS) {
+    slider(loadCtl, c.id + ' power', 0, c.id === 'GPU' ? 450 : 250, 1, c.watts,
+      (v) => { c.watts = v; }, (v) => v + ' W');
+  }
+
+  const mode = $('#mode');
+  mode.append(new Option('Color particles by temperature', 'temp'));
+  mode.append(new Option('Color particles by speed', 'speed'));
+  mode.addEventListener('change', () => { state.colorBy = mode.value; });
+
+  $('#pause').addEventListener('click', (e) => {
+    state.paused = !state.paused;
+    e.target.textContent = state.paused ? 'Play' : 'Pause';
+  });
+  $('#reset').addEventListener('click', resetAir);
+
+  const temps = $('#temps');
+  for (const c of COMPS) {
+    const row = document.createElement('div');
+    row.className = 'trow';
+    row.innerHTML = `<span>${c.id}</span><div class="bar"><i></i></div><span class="tv"></span>`;
+    temps.append(row);
+    c.row = row;
+  }
+}
+
+function updateUI() {
+  for (const c of COMPS) {
+    const pct = clamp((c.T - AMBIENT) / (110 - AMBIENT), 0, 1) * 100;
+    const bar = c.row.querySelector('.bar i');
+    bar.style.width = pct + '%';
+    bar.style.background = `hsl(${tempHue(c.T)},80%,58%)`;
+    const tv = c.row.querySelector('.tv');
+    tv.textContent = Math.round(c.T) + ' °C';
+    tv.classList.toggle('hot', c.T > WARN_T);
+  }
+  const anyHot = COMPS.some(c => c.T > WARN_T);
+  $('#warn').style.display = anyHot ? 'block' : 'none';
+}
+
+function resetAir() {
+  for (let i = 0; i < N; i++) {
+    AX[i] = rand(0, 1); AY[i] = rand(0, 1); AT[i] = AMBIENT; AS[i] = 0;
+  }
+  for (const c of COMPS) c.T = AMBIENT + 10;
+  clearCanvas();
+}
+
+/* ---------- Loop ------------------------------------------------------ */
+let last = performance.now(), uiTimer = 0;
+const hint = $('#hint');
+
+function frame(now) {
+  const frameDt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  if (!state.paused) {
+    const sub = 3, h = frameDt / sub;
+    for (let s = 0; s < sub; s++) {
+      stepParticles(h);
+      stepComponents(h);
+    }
+    // Trails live on their own layer and fade out; hardware is redrawn clean each frame.
+    tctx.globalCompositeOperation = 'destination-out';
+    tctx.fillStyle = 'rgba(0,0,0,0.12)';
+    tctx.fillRect(0, 0, W, H);
+    drawParticles(tctx);
+
+    clearCanvas();
+    ctx.drawImage(trail, 0, 0, W, H);
+    drawCase();
+    drawComponents();
+    drawFans(frameDt);
+  }
+
+  uiTimer += frameDt;
+  if (uiTimer > 0.1) { updateUI(); uiTimer = 0; }
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener('resize', resize);
+resize();
+buildUI();
+resetAir();
+updateUI();
+requestAnimationFrame((t) => { last = t; frame(t); });
+hint.textContent = 'Front intake → rear and top exhaust';
+})();
+</script>
+</body>
+</html>
