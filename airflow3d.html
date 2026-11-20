@@ -5,399 +5,1155 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PC Airflow 3D</title>
 <style>
-  :root{--panel:rgba(12,14,22,.88);--ink:#e8ecf5;--muted:#8a93a8;--accent:#7cf5d0;--line:rgba(255,255,255,.08);--hot:#ff6b5b}
+  :root{--panel:rgba(12,14,20,.88);--ink:#e8ecf5;--muted:#8a93a8;--accent:#7cf5d0;--line:rgba(255,255,255,.08);--hot:#ff6b5b;--warm:#ffb454}
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:#07080d;color:var(--ink);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  html,body{margin:0;height:100%;background:#06070b;color:var(--ink);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
   canvas{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   canvas.dragging{cursor:grabbing}
-  #panel{position:fixed;top:16px;left:16px;width:292px;max-height:calc(100% - 32px);overflow:auto;
-    background:var(--panel);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-    border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
-  #panel::-webkit-scrollbar{width:6px}
-  #panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
-  h1{font-size:16px;margin:0 0 2px;letter-spacing:.03em;font-weight:650}
-  .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
-  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:18px 0 8px;font-weight:600}
-  .ctl{margin:9px 0}
+  .card{position:fixed;top:16px;max-height:calc(100% - 32px);overflow:auto;background:var(--panel);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:16px;
+    padding:16px 18px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  #panel{left:16px;width:296px}
+  #stats{right:16px;width:272px}
+  .card::-webkit-scrollbar{width:6px}
+  .card::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px}
+  h1{font-size:16px;margin:0 0 2px;font-weight:650;letter-spacing:.02em}
+  .sub{color:var(--muted);font-size:12px}
+  h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:16px 0 8px;font-weight:600}
+  .ctl{margin:8px 0}
   .ctl .top{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-bottom:4px}
   .ctl .top b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
   input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;
     background:linear-gradient(90deg,var(--accent) var(--p,50%),#262b3b var(--p,50%));outline:none;margin:0}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(124,245,208,.18);cursor:pointer}
-  select{width:100%;background:#151824;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit}
-  .check{display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;
+    box-shadow:0 0 0 4px rgba(124,245,208,.18);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:#fff;cursor:pointer}
+  select{width:100%;background:#151824;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;outline:none}
+  select:focus{border-color:var(--accent)}
+  .slot{display:grid;grid-template-columns:1fr 96px;align-items:center;gap:8px;margin:5px 0;font-size:12px}
+  .slot select{padding:4px 6px;font-size:12px}
+  .slot .tag{color:var(--muted);font-size:11px}
+  .check{display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer;font-size:12.5px}
   .check input{accent-color:var(--accent);width:15px;height:15px;margin:0}
   .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
   button{background:#171b2a;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px 10px;font:inherit;cursor:pointer}
   button:hover{background:#1f2437;border-color:rgba(124,245,208,.4)}
   button.primary{background:linear-gradient(135deg,#7cf5d0,#8fb8ff);color:#06101a;border:0;font-weight:600}
-  .trow{display:grid;grid-template-columns:44px 1fr 56px;gap:8px;align-items:center;margin:7px 0;font-size:12px}
+  .row{display:grid;grid-template-columns:44px 1fr 56px;gap:8px;align-items:center;margin:7px 0;font-size:12px}
   .bar{height:8px;border-radius:4px;background:#1a1f2e;overflow:hidden}
-  .bar i{display:block;height:100%;border-radius:4px;transition:width .2s}
-  .tv{text-align:right;font-variant-numeric:tabular-nums}
-  .tv.hot{color:var(--hot);font-weight:600}
-  .warn{margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(255,107,91,.12);color:#ffb3a8;font-size:12px;display:none}
+  .bar i{display:block;height:100%;border-radius:4px;transition:width .3s}
+  .v{text-align:right;font-variant-numeric:tabular-nums}
+  .v.hot{color:var(--hot);font-weight:600}
+  .v.warm{color:var(--warm)}
+  .kv{display:flex;justify-content:space-between;font-size:12px;margin:5px 0;color:var(--muted)}
+  .kv b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+  .fanrow{display:grid;grid-template-columns:1fr 34px 64px;font-size:12px;margin:4px 0;color:var(--muted)}
+  .fanrow .m{font-size:11px}
+  .fanrow b{color:var(--ink);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+  .pressure{margin-top:10px;padding:9px 10px;border-radius:9px;font-size:12px;line-height:1.45;background:rgba(124,245,208,.08);color:#bdf7e6}
+  .pressure.neg{background:rgba(255,180,84,.1);color:#ffd9a3}
   .legend{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px;margin-top:10px}
-  .grad{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,hsl(240,85%,60%),hsl(180,85%,55%),hsl(60,90%,55%),hsl(0,90%,58%))}
-  #hint{position:fixed;right:16px;bottom:14px;color:rgba(232,236,245,.55);font-size:12px;text-align:right;pointer-events:none;font-variant-numeric:tabular-nums;text-shadow:0 1px 8px #000}
+  .grad{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,hsl(230,90%,62%),hsl(170,90%,55%),hsl(60,90%,58%),hsl(0,90%,60%))}
+  .warn{margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(255,107,91,.12);color:#ffb3a8;font-size:12px;display:none}
+  .note{color:var(--muted);font-size:11px;margin-top:12px;line-height:1.5}
+  #hint{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;color:rgba(232,236,245,.5);font-size:12px;
+    pointer-events:none;font-variant-numeric:tabular-nums;text-shadow:0 1px 8px #000;white-space:nowrap}
+  @media (max-width:1000px){#stats{display:none}}
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="c" aria-label="3D airflow simulation of a PC case"></canvas>
 
-<aside id="panel">
+<aside id="panel" class="card">
   <h1>PC Airflow 3D</h1>
-  <div class="sub">Drag to orbit, scroll to zoom. Air is pulled in by the front and bottom fans, heated by components, and pushed out the rear and top. Qualitative model, not CFD.</div>
+  <div class="sub">Pop Air–style mid-tower with your parts. Live 3D fluid simulation of the air inside the case.</div>
 
-  <h2>Fans</h2>
-  <div id="fanCtl"></div>
-  <label class="check"><input id="dust" type="checkbox"> Dusty filters (halves intake)</label>
-  <label class="check"><input id="showFans" type="checkbox" checked> Show fan blades</label>
+  <h2>Build</h2>
+  <select id="cooler" aria-label="CPU cooler"></select>
+  <div style="height:8px"></div>
+  <select id="scenario" aria-label="Scenario"></select>
 
-  <h2>Component load</h2>
-  <div id="loadCtl"></div>
+  <h2>Case fans</h2>
+  <div id="caseFans"></div>
+  <div id="slots"></div>
+  <label class="check"><input type="checkbox" id="dust"> Dusty filters (front &amp; top)</label>
 
-  <h2>Display</h2>
+  <h2>Component fans</h2>
+  <div id="compFans"></div>
+
+  <h2>Load</h2>
+  <div id="loads"></div>
+
+  <h2>View</h2>
   <select id="colorBy" aria-label="Color air by"></select>
-  <div class="legend"><span>Cool</span><div class="grad"></div><span>Hot</span></div>
-  <label class="check"><input id="showCase" type="checkbox" checked> Show case panels</label>
-
-  <h2>Temperatures</h2>
-  <div id="temps"></div>
-  <div class="warn" id="warn">Thermal throttling: a component is above 85 °C.</div>
+  <div style="height:8px"></div>
+  <select id="slice" aria-label="Slice plane"></select>
+  <div id="viewCtl"></div>
+  <label class="check"><input type="checkbox" id="panels" checked> Show case panels</label>
+  <label class="check"><input type="checkbox" id="labels" checked> Show labels</label>
 
   <div class="btns">
     <button id="pause">Pause</button>
     <button id="reset" class="primary">Reset air</button>
     <button id="view" style="grid-column:1/3">Reset view</button>
   </div>
+  <div class="note">
+    Incompressible Navier–Stokes on a 1.25 cm grid (stable-fluids method) with buoyancy, porous heatsinks,
+    fan forcing and mesh resistance. Heat is carried by the air, so preheated air reaches downstream parts.
+    Coarse and simplified: trends are meaningful, exact numbers are not. Component heat-up is time-compressed.
+  </div>
+</aside>
+
+<aside id="stats" class="card">
+  <h2 style="margin-top:0">Temperatures</h2>
+  <div id="temps"></div>
+  <div class="warn" id="warn"></div>
+
+  <h2>Airflow</h2>
+  <div id="fanList"></div>
+  <div class="kv" style="margin-top:8px"><span>Fan intake</span><b id="fanIn">–</b></div>
+  <div class="kv"><span>Fan exhaust</span><b id="fanOut">–</b></div>
+  <div class="pressure" id="pressure">Settling…</div>
+
+  <h2>Air</h2>
+  <div class="kv"><span>Average case air</span><b id="airAvg">–</b></div>
+  <div class="kv"><span>GPU intake air</span><b id="gpuIn">–</b></div>
+  <div class="kv"><span>Hottest air</span><b id="airMax">–</b></div>
+  <div class="legend"><span id="legLo">25°</span><div class="grad"></div><span id="legHi">50°</span></div>
 </aside>
 <div id="hint"></div>
 
 <script>
 (() => {
 'use strict';
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
-/* ---------- Geometry (cm). x: left/right, y: up, z: 0 = front, 47 = rear ----- */
-const CASE = { x0: -11.5, x1: 11.5, y0: 0, y1: 46, z0: 0, z1: 47 };
-const TARGET = [0, 23, 23.5];
+/* =====================================================================
+   Grid and physical constants. World units are centimetres.
+   x: 0 = glass side, LX = motherboard tray. y: 0 = floor, up.
+   z: 0 = front panel, LZ = rear panel.
+   ===================================================================== */
+const h = 1.25;
+const NX = 16, NY = 35, NZ = 37;
+const LX = NX * h, LY = NY * h, LZ = NZ * h;
+const NXY = NX * NY, NC = NXY * NZ;
+const NU = (NX + 1) * NY * NZ, NV = NX * (NY + 1) * NZ, NW = NXY * (NZ + 1);
+const DT = 1 / 60;                    // simulated seconds per step
+const RCV = 0.001206 * h * h * h;     // heat capacity of one air cell (J/K), rho*cp*V
+const G_BETA = 981 / 298;             // buoyant acceleration per kelvin (cm/s^2/K)
+const CM3S_PER_CFM = 471.947;
+const FAN_K = 30;                     // how hard a fan drives its face velocity (1/s)
+const DUST_DRAG = 45;                 // extra resistance of clogged filters (1/s)
+const PITERS = 40;                    // pressure iterations per step (warm-started)
+const OMEGA = 1.75;                   // SOR factor
+const ALPHA_T = 20;                   // turbulent heat diffusivity (cm^2/s)
+const NU_T = 16;                       // turbulent (eddy) viscosity (cm^2/s)
 
-const FANS = [
-  // center, axis (air direction), radius, kind, power
-  { id: 'Front top',    c: [0, 34, 0.6],  a: [0, 0, 1],  r: 7, kind: 'intake',  p: 1.0, spin: 1 },
-  { id: 'Front bottom', c: [0, 17, 0.6],  a: [0, 0, 1],  r: 7, kind: 'intake',  p: 1.0, spin: 1 },
-  { id: 'Top',          c: [0, 46.6, 20], a: [0, 1, 0],  r: 7, kind: 'exhaust', p: 1.0, spin: -1 },
-  { id: 'Rear',         c: [0, 36, 47.4], a: [0, 0, 1],  r: 6, kind: 'exhaust', p: 1.0, spin: -1 },
-  { id: 'Bottom PSU',   c: [0, 0.4, 16],  a: [0, 1, 0],  r: 8, kind: 'intake',  p: 0.6, spin: 1 }
-];
+const ci = (i, j, k) => i + NX * (j + NY * k);
+const iu = (i, j, k) => i + (NX + 1) * (j + NY * k);
+const iv = (i, j, k) => i + NX * (j + (NY + 1) * k);
+const iw = (i, j, k) => i + NX * (j + NY * k);
 
+let u = new Float32Array(NU), v = new Float32Array(NV), w = new Float32Array(NW);
+let u2 = new Float32Array(NU), v2 = new Float32Array(NV), w2 = new Float32Array(NW);
+let T = new Float32Array(NC), T2 = new Float32Array(NC);
+const PSI = new Float32Array(NC), DIV = new Float32Array(NC);
+const cellType = new Uint8Array(NC);      // 0 air, 1 solid, 2 porous (heatsink fins)
+const cellDrag = new Float32Array(NC);
+const cellComp = new Int8Array(NC);
+const solidComp = new Int8Array(NC);
+const pMask = new Uint8Array(NC), pDiag = new Float32Array(NC);
+const uKind = new Uint8Array(NU), vKind = new Uint8Array(NV), wKind = new Uint8Array(NW); // 0 free, 1 wall, 2 open vent
+const vVent = new Int8Array(NV), wVent = new Int8Array(NW);
+const field = (a) => (a === 0 ? u : a === 1 ? v : w);
+
+/* =========================== Settings ================================= */
+const settings = {
+  cooler: 'wraith', caseFan: 0.6, gpuFan: 0.55, cpuFan: 0.7,
+  gpuW: 285, cpuW: 65, ssdW: 5, ambient: 25, dust: false,
+  slots: { F1: 'in', F2: 'in', F3: 'off', T1: 'off', T2: 'off', R: 'out' },
+  colorBy: 'temp', slice: 'off', slicePos: 0.5, tracerSpeed: 0.15,
+  panels: true, labels: true, paused: false
+};
+
+/* Components. G is the heatsink conductance (W/K) at the reference air speed vRef,
+   theta the die-to-heatsink resistance (K/W) added for the reported temperature. */
 const COMPS = [
-  { id: 'GPU', min: [-4, 14, 20], max: [8, 24, 44], watts: 300, k: 0.14, T: 45 },
-  { id: 'CPU', min: [-6, 26, 14], max: [-1, 38, 22], watts: 125, k: 0.20, T: 40 },
-  { id: 'PSU', min: [-9, 1, 27],  max: [9, 13, 46],  watts: 150, k: 0.10, T: 35 },
-  { id: 'RAM', min: [-6, 30, 6],  max: [-4, 40, 10], watts: 15,  k: 0.30, T: 30 }
+  { id: 'GPU', warn: 83, theta: 0.03, G: 14,   cfmRef: 20, T: 40 },
+  { id: 'CPU', warn: 90, theta: 0.20, G: 3.4,  cfmRef: 6.5, T: 40 },
+  { id: 'SSD', warn: 70, theta: 0,    G: 0.5,  vRef: 18, T: 35 },
+  { id: 'RAM', warn: 70, theta: 0,    G: 0.55, vRef: 34, T: 32 },
+  { id: 'VRM', warn: 100, theta: 0,   G: 0.84, vRef: 38, T: 35 }
 ];
-const AMBIENT = 25, WARN_T = 85;
-const SIM_SPEED = 25;     // cm/s at field strength 1
-const N = 3200;
+const COOLERS = {
+  wraith: { label: 'Your build: Wraith Stealth + ROG Strix', G: 3.4, cfmRef: 6.5 },
+  tower:  { label: 'Upgrade: dual-tower cooler + ROG Strix', G: 7.0, cfmRef: 40 }
+};
+function compPower(k) {
+  switch (k) {
+    case 0: return settings.gpuW;
+    case 1: return settings.cpuW;
+    case 2: return settings.ssdW;
+    case 3: return 6;
+    default: return 2 + 0.15 * settings.cpuW;
+  }
+}
 
-/* ---------- State ----------------------------------------------------- */
-const canvas = document.getElementById('c');
+/* Open areas of the case shell. r = [a0, b0, a1, b1] in the wall's two in-plane axes
+   (front/rear: x,y; top: x,z). */
+const VENTS = [
+  { wall: 'front', r: [1.25, 2.5, 18.75, 43.75], drag: 6, dusty: true, group: 0 },
+  { wall: 'top',   r: [2.5, 3.75, 17.5, 36.25],  drag: 8, dusty: true, group: 1 },
+  { wall: 'rear',  r: [3.75, 30, 15, 42.5],      drag: 4, dusty: false, group: 2 },
+  { wall: 'rear',  r: [2.5, 11.25, 6.25, 28.75], drag: 12, dusty: false, group: 3 },
+  { wall: 'rear',  r: [6.25, 21.25, 18.75, 28.75], drag: 12, dusty: false, group: 3 },
+  { wall: 'rear',  r: [6.25, 11.25, 18.75, 13.75], drag: 12, dusty: false, group: 3 }
+];
+const GROUPS = ['front mesh', 'top vent', 'rear grille', 'rear slot vents'];
+function ventAt(wall, a, b) {
+  for (let n = 0; n < VENTS.length; n++) {
+    const q = VENTS[n];
+    if (q.wall === wall && a >= q.r[0] && a <= q.r[2] && b >= q.r[1] && b <= q.r[3]) return n;
+  }
+  return -1;
+}
+
+/* ============================ Scene =================================== */
+const B = (x0, y0, z0, x1, y1, z1) => ({ min: [x0, y0, z0], max: [x1, y1, z1] });
+let SCENE = null;
+
+function buildScene() {
+  const S = { solids: [], porous: [], plates: [], fans: [] };
+  // Case structure
+  S.solids.push({ b: B(18.75, 12.5, 21.25, 20, 37.5, 46.25), col: [30, 34, 44] });   // motherboard (mATX)
+  S.solids.push({ b: B(0, 10, 10, 20, 11.25, 46.25), col: [22, 24, 30] });           // PSU shroud top
+  S.solids.push({ b: B(2.5, 0, 27.5, 17.5, 8.75, 46.25), col: [26, 28, 34] });       // PSU
+
+  // GPU: ROG Strix-style triple-fan card. Fans blow up into the fin stack; the
+  // backplate is cut short at the front end for flow-through.
+  S.solids.push({ b: B(6.25, 20, 22.5, 18.75, 21.25, 45), col: [44, 47, 56] });
+  S.porous.push({ b: B(6.25, 15, 13.75, 18.75, 20, 45), drag: 3, comp: 0, col: [170, 110, 70] });
+  S.porous.push({ b: B(6.25, 20, 13.75, 18.75, 21.25, 22.5), drag: 3, comp: 0, col: [170, 110, 70] });
+  S.plates.push({ b: B(6.25, 13.75, 13.75, 18.75, 15, 45), axis: 1,
+    holes: [[12.5, 18.75, 4.5], [12.5, 29.375, 4.5], [12.5, 40, 4.5]], col: [36, 38, 46] });
+  [18.75, 29.375, 40].forEach((z, n) => S.fans.push({
+    id: 'gpu' + n, label: 'GPU fan ' + (n + 1), group: 'gpu', axis: 1, layers: [13.75, 15],
+    c: [12.5, z], r: 4.5, hub: 1.4, dir: 1, free: 360, k: 60, view: [-1], spin: n === 1 ? -1 : 1 }));
+
+  // Motherboard parts: RAM, VRM heatsinks, bare NVMe drive above the GPU
+  S.solids.push({ b: B(15, 23.75, 26.25, 18.75, 37.5, 27.5), col: [44, 48, 58], comp: 3 });
+  S.solids.push({ b: B(15, 23.75, 28.75, 18.75, 37.5, 30), col: [44, 48, 58], comp: 3 });
+  S.solids.push({ b: B(16.25, 27.5, 41.25, 18.75, 36.25, 45), col: [160, 112, 84], comp: 4 });
+  S.solids.push({ b: B(16.25, 35, 31.25, 18.75, 37.5, 41.25), col: [160, 112, 84], comp: 4 });
+  S.solids.push({ b: B(17.5, 22.5, 28.75, 18.75, 23.75, 36.25), col: [40, 82, 135], comp: 2 });
+
+  if (settings.cooler === 'wraith') {
+    // Top-down cooler: fan blows toward the motherboard through a short fin stack.
+    S.porous.push({ b: B(15, 25, 31.25, 18.75, 33.75, 40), drag: 6, comp: 1, col: [78, 82, 92] });
+    S.plates.push({ b: B(13.75, 25, 31.25, 15, 33.75, 40), axis: 0, holes: [[29.375, 35.625, 4.25]], col: [26, 27, 31] });
+    S.fans.push({ id: 'cpu0', label: 'CPU fan', group: 'cpu', axis: 0, layers: [13.75, 15], c: [29.375, 35.625],
+      r: 4.25, hub: 1.5, dir: 1, free: 240, k: 60, view: [-1], spin: 1 });
+  } else {
+    // Dual-tower cooler: two fin stacks, two fans blowing front to rear.
+    S.porous.push({ b: B(5, 23.75, 31.25, 16.25, 36.25, 36.25), drag: 5, comp: 1, col: [124, 130, 142] });
+    S.porous.push({ b: B(5, 23.75, 37.5, 16.25, 36.25, 42.5), drag: 5, comp: 1, col: [124, 130, 142] });
+    S.solids.push({ b: B(16.25, 26.25, 32.5, 18.75, 32.5, 40), col: [96, 84, 72] });
+    S.plates.push({ b: B(3.75, 23.75, 30, 16.25, 36.25, 31.25), axis: 2, holes: [[10.625, 30, 6]], col: [30, 32, 38] });
+    S.plates.push({ b: B(3.75, 23.75, 36.25, 16.25, 36.25, 37.5), axis: 2, holes: [[10.625, 30, 6]], col: [30, 32, 38] });
+    S.fans.push({ id: 'cpu0', label: 'CPU fan 1', group: 'cpu', axis: 2, layers: [30, 31.25], c: [10.625, 30],
+      r: 6, hub: 2, dir: 1, free: 235, k: 60, view: [-1, 1], spin: 1 });
+    S.fans.push({ id: 'cpu1', label: 'CPU fan 2', group: 'cpu', axis: 2, layers: [36.25, 37.5], c: [10.625, 30],
+      r: 6, hub: 2, dir: 1, free: 235, k: 60, view: [-1, 1], spin: 1 });
+  }
+
+  // Case fan slots (120 mm)
+  const caseFan = (slot, label, wall, c) => {
+    const axis = wall === 'top' ? 1 : 2;
+    const inward = wall === 'front' ? 1 : -1;
+    const layers = wall === 'front' ? [0, 1.25] : wall === 'rear' ? [LZ, LZ - 1.25] : [LY, LY - 1.25];
+    S.fans.push({ id: slot, slot, label, group: 'case', wall, axis, layers, c, r: 5.8, hub: 2,
+      inward, free: 235, view: [-1, 1], spin: 1 });
+  };
+  caseFan('F1', 'Front 1', 'front', [10, 36.25]);
+  caseFan('F2', 'Front 2', 'front', [10, 23.75]);
+  caseFan('F3', 'Front 3', 'front', [10, 11.25]);
+  caseFan('T1', 'Top 1', 'top', [8.75, 13.75]);
+  caseFan('T2', 'Top 2', 'top', [8.75, 27.5]);
+  caseFan('R', 'Rear', 'rear', [9.375, 36.25]);
+  return S;
+}
+
+function forCells(b, fn) {
+  const i0 = Math.max(0, Math.round(b.min[0] / h)), i1 = Math.min(NX, Math.round(b.max[0] / h));
+  const j0 = Math.max(0, Math.round(b.min[1] / h)), j1 = Math.min(NY, Math.round(b.max[1] / h));
+  const k0 = Math.max(0, Math.round(b.min[2] / h)), k1 = Math.min(NZ, Math.round(b.max[2] / h));
+  for (let k = k0; k < k1; k++) for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) fn(i, j, k);
+}
+
+function rasterize() {
+  cellType.fill(0); cellDrag.fill(0); cellComp.fill(-1); solidComp.fill(-1);
+  for (const s of SCENE.solids) forCells(s.b, (i, j, k) => {
+    const c = ci(i, j, k);
+    cellType[c] = 1;
+    if (s.comp !== undefined) solidComp[c] = s.comp;
+  });
+  for (const p of SCENE.plates) forCells(p.b, (i, j, k) => {
+    const x = (i + 0.5) * h, y = (j + 0.5) * h, z = (k + 0.5) * h;
+    const a = p.axis === 0 ? y : x, b = p.axis === 2 ? y : z;
+    for (const hl of p.holes) if (Math.hypot(a - hl[0], b - hl[1]) <= hl[2]) return;
+    cellType[ci(i, j, k)] = 1;
+  });
+  for (const p of SCENE.porous) forCells(p.b, (i, j, k) => {
+    const c = ci(i, j, k);
+    if (cellType[c] === 1) return;
+    cellType[c] = 2; cellDrag[c] = p.drag; cellComp[c] = p.comp;
+  });
+}
+
+function buildFaces() {
+  const solid = (i, j, k) => cellType[ci(i, j, k)] === 1;
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i <= NX; i++) {
+    uKind[iu(i, j, k)] = (i === 0 || i === NX || solid(i - 1, j, k) || solid(i, j, k)) ? 1 : 0;
+  }
+  vVent.fill(-1); wVent.fill(-1);
+  for (let k = 0; k < NZ; k++) for (let j = 0; j <= NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iv(i, j, k);
+    if (j === 0) vKind[f] = 1;
+    else if (j === NY) {
+      const n = ventAt('top', (i + 0.5) * h, (k + 0.5) * h);
+      if (n >= 0 && !solid(i, NY - 1, k)) { vKind[f] = 2; vVent[f] = n; } else vKind[f] = 1;
+    } else vKind[f] = (solid(i, j - 1, k) || solid(i, j, k)) ? 1 : 0;
+  }
+  for (let k = 0; k <= NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iw(i, j, k);
+    if (k === 0 || k === NZ) {
+      const n = ventAt(k === 0 ? 'front' : 'rear', (i + 0.5) * h, (j + 0.5) * h);
+      if (n >= 0 && !solid(i, j, k === 0 ? 0 : NZ - 1)) { wKind[f] = 2; wVent[f] = n; } else wKind[f] = 1;
+    } else wKind[f] = (solid(i, j, k - 1) || solid(i, j, k)) ? 1 : 0;
+  }
+}
+
+let dragArr, dragIdx, dragFac;
+function buildDrag() {
+  const arr = [], idx = [], fac = [];
+  const push = (a, f, kd) => { if (kd > 0) { arr.push(a); idx.push(f); fac.push(1 / (1 + kd * DT)); } };
+  const ventDrag = (n) => VENTS[n].drag + (settings.dust && VENTS[n].dusty ? DUST_DRAG : 0);
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 1; i < NX; i++) {
+    const f = iu(i, j, k);
+    if (uKind[f] === 0) push(0, f, Math.max(cellDrag[ci(i - 1, j, k)], cellDrag[ci(i, j, k)]));
+  }
+  for (let k = 0; k < NZ; k++) for (let j = 1; j <= NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iv(i, j, k);
+    if (vKind[f] === 0) push(1, f, Math.max(cellDrag[ci(i, j - 1, k)], cellDrag[ci(i, j, k)]));
+    else if (vKind[f] === 2) push(1, f, ventDrag(vVent[f]));
+  }
+  for (let k = 0; k <= NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iw(i, j, k);
+    if (wKind[f] === 0) push(2, f, Math.max(cellDrag[ci(i, j, k - 1)], cellDrag[ci(i, j, k)]));
+    else if (wKind[f] === 2) push(2, f, ventDrag(wVent[f]));
+  }
+  dragArr = Uint8Array.from(arr); dragIdx = Int32Array.from(idx); dragFac = Float32Array.from(fac);
+}
+
+function buildPressure() {
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const c = ci(i, j, k);
+    pMask[c] = 0; pDiag[c] = 0;
+    if (cellType[c] === 1) continue;
+    let m = 0, d = 0, f;
+    f = uKind[iu(i, j, k)];     if (f !== 1) { d++; if (f === 0) m |= 1; }
+    f = uKind[iu(i + 1, j, k)]; if (f !== 1) { d++; if (f === 0) m |= 2; }
+    f = vKind[iv(i, j, k)];     if (f !== 1) { d++; if (f === 0) m |= 4; }
+    f = vKind[iv(i, j + 1, k)]; if (f !== 1) { d++; if (f === 0) m |= 8; }
+    f = wKind[iw(i, j, k)];     if (f !== 1) { d++; if (f === 0) m |= 16; }
+    f = wKind[iw(i, j, k + 1)]; if (f !== 1) { d++; if (f === 0) m |= 32; }
+    pMask[c] = m; pDiag[c] = d;
+  }
+}
+
+function buildFans() {
+  for (const f of SCENE.fans) {
+    const all = [];
+    f.layers.forEach((p, li) => {
+      const L = Math.round(p / h);
+      const list = [];
+      const inDisk = (a, b) => { const r = Math.hypot(a - f.c[0], b - f.c[1]); return r <= f.r && r >= f.hub; };
+      if (f.axis === 2) {
+        for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++)
+          if (inDisk((i + 0.5) * h, (j + 0.5) * h)) { const fi = iw(i, j, L); if (wKind[fi] !== 1) list.push(fi); }
+      } else if (f.axis === 1) {
+        for (let k = 0; k < NZ; k++) for (let i = 0; i < NX; i++)
+          if (inDisk((i + 0.5) * h, (k + 0.5) * h)) { const fi = iv(i, L, k); if (vKind[fi] !== 1) list.push(fi); }
+      } else {
+        for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++)
+          if (inDisk((j + 0.5) * h, (k + 0.5) * h)) { const fi = iu(L, j, k); if (uKind[fi] !== 1) list.push(fi); }
+      }
+      all.push(...list);
+      if (li === 0) f.first = Int32Array.from(list);
+    });
+    f.faces = Int32Array.from(all);
+    // Drawing centre: on the wall plane for case fans, mid-layer for internal fans.
+    const ax = f.group === 'case' ? f.layers[0] + (f.inward * 0.6) : (f.layers[0] + f.layers[f.layers.length - 1]) / 2;
+    f.center = f.axis === 0 ? [ax, f.c[0], f.c[1]] : f.axis === 1 ? [f.c[0], ax, f.c[1]] : [f.c[0], f.c[1], ax];
+    f.angle = f.angle || Math.random() * 6;
+  }
+}
+
+// Open boundary faces: used for flux accounting and for seeding tracers.
+let OB = null;
+function buildOpenBoundary() {
+  const arr = [], idx = [], sign = [], group = [], fan = [], pos = [];
+  const fanOf = new Map();
+  SCENE.fans.forEach((f, n) => { if (f.group === 'case') for (const fi of f.first) fanOf.set((f.axis === 1 ? 'v' : 'w') + fi, n); });
+  for (let k = 0; k < NZ; k++) for (let i = 0; i < NX; i++) {
+    const f = iv(i, NY, k);
+    if (vKind[f] !== 2) continue;
+    arr.push(1); idx.push(f); sign.push(-1); group.push(VENTS[vVent[f]].group);
+    fan.push(fanOf.has('v' + f) ? fanOf.get('v' + f) : -1); pos.push(i + 0.5, NY, k + 0.5);
+  }
+  for (const kk of [0, NZ]) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iw(i, j, kk);
+    if (wKind[f] !== 2) continue;
+    arr.push(2); idx.push(f); sign.push(kk === 0 ? 1 : -1); group.push(VENTS[wVent[f]].group);
+    fan.push(fanOf.has('w' + f) ? fanOf.get('w' + f) : -1); pos.push(i + 0.5, j + 0.5, kk);
+  }
+  OB = { arr: Uint8Array.from(arr), idx: Int32Array.from(idx), sign: Int8Array.from(sign), group: Int8Array.from(group),
+    fan: Int16Array.from(fan), pos: Float32Array.from(pos), cdf: new Float32Array(arr.length), total: 0 };
+}
+
+let exS, exStart, exN, buoyIdx, buoyA, buoyB, airCells, gpuInCells;
+function buildLists() {
+  // Heat-exchange cells per component
+  COMPS.forEach((cp, k) => {
+    const set = new Set();
+    for (let c = 0; c < NC; c++) {
+      if (cellType[c] === 2 && cellComp[c] === k) set.add(c);
+      if (solidComp[c] === k) {
+        const i = c % NX, j = ((c / NX) | 0) % NY, kk = (c / NXY) | 0;
+        const nb = [[i - 1, j, kk], [i + 1, j, kk], [i, j - 1, kk], [i, j + 1, kk], [i, j, kk - 1], [i, j, kk + 1]];
+        for (const [a, b, d] of nb) {
+          if (a < 0 || a >= NX || b < 0 || b >= NY || d < 0 || d >= NZ) continue;
+          const n = ci(a, b, d);
+          if (cellType[n] !== 1) set.add(n);
+        }
+      }
+    }
+    cp.cells = Int32Array.from(set);
+  });
+  // Solid cells that border air: their temperature is extrapolated from neighbours
+  const s = [], st = [0], nn = [];
+  for (let c = 0; c < NC; c++) {
+    if (cellType[c] !== 1) continue;
+    const i = c % NX, j = ((c / NX) | 0) % NY, k = (c / NXY) | 0;
+    const before = nn.length;
+    if (i > 0 && cellType[c - 1] !== 1) nn.push(c - 1);
+    if (i < NX - 1 && cellType[c + 1] !== 1) nn.push(c + 1);
+    if (j > 0 && cellType[c - NX] !== 1) nn.push(c - NX);
+    if (j < NY - 1 && cellType[c + NX] !== 1) nn.push(c + NX);
+    if (k > 0 && cellType[c - NXY] !== 1) nn.push(c - NXY);
+    if (k < NZ - 1 && cellType[c + NXY] !== 1) nn.push(c + NXY);
+    if (nn.length > before) { s.push(c); st.push(nn.length); }
+  }
+  exS = Int32Array.from(s); exStart = Int32Array.from(st); exN = Int32Array.from(nn);
+  // Buoyancy acts on every vertical face that is not a wall
+  const bi = [], ba = [], bb = [];
+  for (let k = 0; k < NZ; k++) for (let j = 1; j <= NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iv(i, j, k);
+    if (vKind[f] === 1) continue;
+    bi.push(f); ba.push(ci(i, j - 1, k)); bb.push(j < NY ? ci(i, j, k) : -1);
+  }
+  buoyIdx = Int32Array.from(bi); buoyA = Int32Array.from(ba); buoyB = Int32Array.from(bb);
+  const ac = [], gc = [];
+  for (let c = 0; c < NC; c++) if (cellType[c] !== 1) ac.push(c);
+  forCells(B(6.25, 11.25, 13.75, 18.75, 13.75, 45), (i, j, k) => { const c = ci(i, j, k); if (cellType[c] === 0) gc.push(c); });
+  airCells = Int32Array.from(ac); gpuInCells = Int32Array.from(gc);
+}
+
+function updateFanTargets() {
+  for (const f of SCENE.fans) {
+    let pct, dir;
+    if (f.group === 'case') {
+      const mode = settings.slots[f.slot];
+      f.mode = mode;
+      pct = mode === 'off' ? 0 : settings.caseFan;
+      dir = mode === 'in' ? f.inward : -f.inward;
+    } else {
+      pct = f.group === 'gpu' ? settings.gpuFan : settings.cpuFan;
+      dir = f.dir;
+    }
+    f.active = pct > 0;
+    f.pct = pct;
+    f.sdir = dir;
+    f.target = dir * f.free * pct;
+  }
+}
+
+function resetFlow() {
+  u.fill(0); v.fill(0); w.fill(0); PSI.fill(0);
+  T.fill(settings.ambient);
+  for (const c of COMPS) c.T = settings.ambient + 12;
+  for (let n = 0; n < NT; n++) spawnTracer(n, true);
+  clearTrails();
+}
+
+function rebuild() {
+  SCENE = buildScene();
+  rasterize();
+  buildFaces();
+  buildDrag();
+  buildPressure();
+  buildFans();
+  buildOpenBoundary();
+  buildLists();
+  COMPS[1].G = COOLERS[settings.cooler].G;
+  COMPS[1].cfmRef = COOLERS[settings.cooler].cfmRef;
+  COMPS[0].fans = SCENE.fans.filter((f) => f.group === 'gpu');
+  COMPS[1].fans = SCENE.fans.filter((f) => f.group === 'cpu');
+  for (const c of COMPS) c.C = c.G * 3.5;    // heat-up time constant of ~3.5 s (compressed)
+  const anchorOf = (k) => {
+    const b = SCENE.porous.find((p) => p.comp === k) || SCENE.solids.find((p) => p.comp === k);
+    return b ? [(b.b.min[0] + b.b.max[0]) / 2, (b.b.min[1] + b.b.max[1]) / 2, (b.b.min[2] + b.b.max[2]) / 2] : [0, 0, 0];
+  };
+  COMPS.forEach((c, k) => { c.anchor = anchorOf(k); });
+  updateFanTargets();
+  resetFlow();
+  measure();
+}
+
+/* ============================ Solver ================================= */
+function trilerp(f, nx, ny, nz, x, y, z) {
+  if (x < 0) x = 0; else if (x > nx - 1) x = nx - 1;
+  if (y < 0) y = 0; else if (y > ny - 1) y = ny - 1;
+  if (z < 0) z = 0; else if (z > nz - 1) z = nz - 1;
+  let i = x | 0, j = y | 0, k = z | 0;
+  if (i > nx - 2) i = nx - 2;
+  if (j > ny - 2) j = ny - 2;
+  if (k > nz - 2) k = nz - 2;
+  const fx = x - i, fy = y - j, fz = z - k;
+  const sy = nx, sz = nx * ny;
+  const o = i + sy * j + sz * k;
+  const a = f[o] + (f[o + 1] - f[o]) * fx;
+  const b = f[o + sy] + (f[o + sy + 1] - f[o + sy]) * fx;
+  const c = f[o + sz] + (f[o + sz + 1] - f[o + sz]) * fx;
+  const d = f[o + sz + sy] + (f[o + sz + sy + 1] - f[o + sz + sy]) * fx;
+  const ab = a + (b - a) * fy, cd = c + (d - c) * fy;
+  return ab + (cd - ab) * fz;
+}
+let VX = 0, VY = 0, VZ = 0;
+// Velocity (cm/s) at a point in grid coordinates (cell units, origin at the domain corner).
+function velAt(x, y, z) {
+  VX = trilerp(u, NX + 1, NY, NZ, x, y - 0.5, z - 0.5);
+  VY = trilerp(v, NX, NY + 1, NZ, x - 0.5, y, z - 0.5);
+  VZ = trilerp(w, NX, NY, NZ + 1, x - 0.5, y - 0.5, z);
+}
+
+function extrapolateSolidT() {
+  for (let n = 0; n < exS.length; n++) {
+    let s = 0;
+    const a = exStart[n], b = exStart[n + 1];
+    for (let m = a; m < b; m++) s += T[exN[m]];
+    T[exS[n]] = s / (b - a);
+  }
+}
+
+function advect() {
+  extrapolateSolidT();
+  const s = DT / h;
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i <= NX; i++) {
+    const f = iu(i, j, k);
+    if (uKind[f] === 1) { u2[f] = 0; continue; }
+    const x = i, y = j + 0.5, z = k + 0.5;
+    velAt(x, y, z);
+    u2[f] = trilerp(u, NX + 1, NY, NZ, x - VX * s, y - VY * s - 0.5, z - VZ * s - 0.5);
+  }
+  for (let k = 0; k < NZ; k++) for (let j = 0; j <= NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iv(i, j, k);
+    if (vKind[f] === 1) { v2[f] = 0; continue; }
+    const x = i + 0.5, y = j, z = k + 0.5;
+    velAt(x, y, z);
+    v2[f] = trilerp(v, NX, NY + 1, NZ, x - VX * s - 0.5, y - VY * s, z - VZ * s - 0.5);
+  }
+  for (let k = 0; k <= NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const f = iw(i, j, k);
+    if (wKind[f] === 1) { w2[f] = 0; continue; }
+    const x = i + 0.5, y = j + 0.5, z = k;
+    velAt(x, y, z);
+    w2[f] = trilerp(w, NX, NY, NZ + 1, x - VX * s - 0.5, y - VY * s - 0.5, z - VZ * s);
+  }
+  const amb = settings.ambient;
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const c = ci(i, j, k);
+    if (cellType[c] === 1) { T2[c] = T[c]; continue; }
+    const x = i + 0.5, y = j + 0.5, z = k + 0.5;
+    velAt(x, y, z);
+    const bx = x - VX * s, by = y - VY * s, bz = z - VZ * s;
+    // Back-traced outside the case means fresh air at room temperature.
+    T2[c] = (bx < 0 || bx > NX || by < 0 || by > NY || bz < 0 || bz > NZ)
+      ? amb : trilerp(T, NX, NY, NZ, bx - 0.5, by - 0.5, bz - 0.5);
+  }
+  let t;
+  t = u; u = u2; u2 = t;
+  t = v; v = v2; v2 = t;
+  t = w; w = w2; w2 = t;
+  t = T; T = T2; T2 = t;
+}
+
+// Turbulent mixing. The grid is far too coarse to resolve fan-jet turbulence, so its
+// effect is modelled as eddy diffusion of heat and momentum (explicit, stable for these values).
+function diffuseField(f, out, kind, nx, ny, nz, l) {
+  const sy = nx, sz = nx * ny;
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const n = i + sy * j + sz * k;
+    if (kind[n] === 1) { out[n] = 0; continue; }
+    const x = f[n];
+    let s = 0;
+    if (i > 0) s += f[n - 1] - x;
+    if (i < nx - 1) s += f[n + 1] - x;
+    if (j > 0) s += f[n - sy] - x;
+    if (j < ny - 1) s += f[n + sy] - x;
+    if (k > 0) s += f[n - sz] - x;
+    if (k < nz - 1) s += f[n + sz] - x;
+    out[n] = x + l * s;
+  }
+}
+function diffuse() {
+  const lt = 0.5 * ALPHA_T * DT / (h * h), lv = 0.5 * NU_T * DT / (h * h);
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const c = ci(i, j, k);
+    const t = T[c];
+    if (cellType[c] === 1) { T2[c] = t; continue; }
+    let s = 0;
+    if (i > 0 && cellType[c - 1] !== 1) s += T[c - 1] - t;
+    if (i < NX - 1 && cellType[c + 1] !== 1) s += T[c + 1] - t;
+    if (j > 0 && cellType[c - NX] !== 1) s += T[c - NX] - t;
+    if (j < NY - 1 && cellType[c + NX] !== 1) s += T[c + NX] - t;
+    if (k > 0 && cellType[c - NXY] !== 1) s += T[c - NXY] - t;
+    if (k < NZ - 1 && cellType[c + NXY] !== 1) s += T[c + NXY] - t;
+    T2[c] = t + lt * s;
+  }
+  diffuseField(u, u2, uKind, NX + 1, NY, NZ, lv);
+  diffuseField(v, v2, vKind, NX, NY + 1, NZ, lv);
+  diffuseField(w, w2, wKind, NX, NY, NZ + 1, lv);
+  let t;
+  t = u; u = u2; u2 = t;
+  t = v; v = v2; v2 = t;
+  t = w; w = w2; w2 = t;
+  t = T; T = T2; T2 = t;
+}
+
+function forces() {
+  const amb = settings.ambient;
+  for (let n = 0; n < buoyIdx.length; n++) {
+    const a = buoyA[n], b = buoyB[n];
+    const tb = b >= 0 ? T[b] : T[a];
+    v[buoyIdx[n]] += DT * G_BETA * (0.5 * (T[a] + tb) - amb);
+  }
+  for (const f of SCENE.fans) {
+    if (!f.active) continue;
+    const a = (f.k || FAN_K) * DT, inv = 1 / (1 + a);
+    const F = field(f.axis), t = a * f.target, faces = f.faces;
+    for (let n = 0; n < faces.length; n++) F[faces[n]] = (F[faces[n]] + t) * inv;
+  }
+  for (let n = 0; n < dragIdx.length; n++) {
+    const F = field(dragArr[n]);
+    F[dragIdx[n]] *= dragFac[n];
+  }
+}
+
+function project() {
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const c = ci(i, j, k);
+    if (cellType[c] === 1) { DIV[c] = 0; continue; }
+    DIV[c] = u[iu(i + 1, j, k)] - u[iu(i, j, k)] + v[iv(i, j + 1, k)] - v[iv(i, j, k)] + w[iw(i, j, k + 1)] - w[iw(i, j, k)];
+  }
+  // Red-black SOR for the pressure-like potential psi; warm-started from the last step.
+  for (let it = 0; it < PITERS; it++) {
+    for (let color = 0; color < 2; color++) {
+      for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) {
+        let i = (j + k + color) & 1, c = ci(i, j, k);
+        for (; i < NX; i += 2, c += 2) {
+          const d = pDiag[c];
+          if (d === 0) continue;
+          const m = pMask[c];
+          let s = 0;
+          if (m & 1) s += PSI[c - 1];
+          if (m & 2) s += PSI[c + 1];
+          if (m & 4) s += PSI[c - NX];
+          if (m & 8) s += PSI[c + NX];
+          if (m & 16) s += PSI[c - NXY];
+          if (m & 32) s += PSI[c + NXY];
+          PSI[c] += OMEGA * ((s - DIV[c]) / d - PSI[c]);
+        }
+      }
+    }
+  }
+  for (let k = 0; k < NZ; k++) for (let j = 0; j < NY; j++) for (let i = 1; i < NX; i++) {
+    const f = iu(i, j, k);
+    if (uKind[f] === 0) u[f] -= PSI[ci(i, j, k)] - PSI[ci(i - 1, j, k)];
+  }
+  for (let k = 0; k < NZ; k++) for (let i = 0; i < NX; i++) {
+    for (let j = 1; j < NY; j++) {
+      const f = iv(i, j, k);
+      if (vKind[f] === 0) v[f] -= PSI[ci(i, j, k)] - PSI[ci(i, j - 1, k)];
+    }
+    const f = iv(i, NY, k);
+    if (vKind[f] === 2) v[f] += PSI[ci(i, NY - 1, k)];
+  }
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    for (let k = 1; k < NZ; k++) {
+      const f = iw(i, j, k);
+      if (wKind[f] === 0) w[f] -= PSI[ci(i, j, k)] - PSI[ci(i, j, k - 1)];
+    }
+    let f = iw(i, j, 0);
+    if (wKind[f] === 2) w[f] -= PSI[ci(i, j, 0)];
+    f = iw(i, j, NZ);
+    if (wKind[f] === 2) w[f] += PSI[ci(i, j, NZ - 1)];
+  }
+}
+
+function cellSpeed(c) {
+  const i = c % NX, j = ((c / NX) | 0) % NY, k = (c / NXY) | 0;
+  const ux = 0.5 * (u[iu(i, j, k)] + u[iu(i + 1, j, k)]);
+  const uy = 0.5 * (v[iv(i, j, k)] + v[iv(i, j + 1, k)]);
+  const uz = 0.5 * (w[iw(i, j, k)] + w[iw(i, j, k + 1)]);
+  return Math.sqrt(ux * ux + uy * uy + uz * uz);
+}
+
+// Components exchange heat with the air cells they touch; the air carries it away.
+function exchange() {
+  COMPS.forEach((cp, k) => {
+    const P = compPower(k), cells = cp.cells, n = cells.length;
+    if (!n) return;
+    const gRef = cp.G / n, Tc = cp.T;
+    // Fan-cooled heatsinks follow the airflow their own fans push through them;
+    // passive parts follow the local air speed around them.
+    let fanF = -1;
+    if (cp.fans && cp.fans.length) {
+      let q = 0;
+      for (const f of cp.fans) {
+        if (!f.active) continue;
+        const F = field(f.axis);
+        for (let m = 0; m < f.first.length; m++) q += F[f.first[m]] * f.sdir;
+      }
+      cp.cfm = Math.max(0, q * h * h / CM3S_PER_CFM);
+      fanF = Math.max(0.12, Math.pow(cp.cfm / cp.cfmRef, 0.8));
+    }
+    let Q = 0, sp = 0;
+    for (let m = 0; m < n; m++) {
+      const c = cells[m];
+      const s = cellSpeed(c);
+      sp += s;
+      const g = gRef * (fanF >= 0 ? fanF : Math.max(0.12, Math.pow(s / cp.vRef, 0.8)));
+      const a = g * DT / RCV;
+      const Tn = (T[c] + a * Tc) / (1 + a);
+      Q += Tn - T[c];
+      T[c] = Tn;
+    }
+    Q *= RCV / DT;
+    cp.T += (P - Q) * DT / cp.C;
+    cp.speed = sp / n;
+  });
+}
+
+function simStep() {
+  advect();
+  diffuse();
+  diffuse();
+  forces();
+  project();
+  exchange();
+}
+
+/* ============================ Measurements ============================ */
+const stats = { fanIn: 0, fanOut: 0, passive: [0, 0, 0, 0], passiveNet: 0, airAvg: 0, airMax: 0, gpuIn: 0 };
+function measure() {
+  const a2 = h * h / CM3S_PER_CFM;
+  stats.fanIn = 0; stats.fanOut = 0;
+  for (const f of SCENE.fans) {
+    const F = field(f.axis);
+    let q = 0;
+    for (let n = 0; n < f.first.length; n++) q += F[f.first[n]];
+    f.cfm = f.active ? q * f.sdir * a2 : 0;
+    if (f.group === 'case' && f.active) {
+      if (f.mode === 'in') stats.fanIn += f.cfm; else stats.fanOut += f.cfm;
+    }
+  }
+  stats.passive.fill(0);
+  let total = 0;
+  for (let n = 0; n < OB.idx.length; n++) {
+    const q = field(OB.arr[n])[OB.idx[n]] * OB.sign[n];
+    const fn = OB.fan[n];
+    const fanActive = fn >= 0 && SCENE.fans[fn].active;
+    if (!fanActive) stats.passive[OB.group[n]] += q * a2;
+    total += q > 1 ? q : 0;
+    OB.cdf[n] = total;
+  }
+  OB.total = total;
+  stats.passiveNet = stats.passive.reduce((s, x) => s + x, 0);
+  let sum = 0, mx = -1e9;
+  for (let n = 0; n < airCells.length; n++) { const t = T[airCells[n]]; sum += t; if (t > mx) mx = t; }
+  stats.airAvg = sum / airCells.length;
+  stats.airMax = mx;
+  let g = 0;
+  for (let n = 0; n < gpuInCells.length; n++) g += T[gpuInCells[n]];
+  stats.gpuIn = gpuInCells.length ? g / gpuInCells.length : settings.ambient;
+}
+
+/* ============================ Tracers ================================= */
+const NT = 3600, MAX_AGE = 14;
+const tX = new Float32Array(NT), tY = new Float32Array(NT), tZ = new Float32Array(NT), tAge = new Float32Array(NT);
+const tSX = new Float32Array(NT), tSY = new Float32Array(NT), tHas = new Uint8Array(NT);
+
+function spawnTracer(n, anywhere) {
+  tHas[n] = 0;
+  tAge[n] = anywhere ? Math.random() * MAX_AGE : 0;
+  if (!anywhere && OB && OB.total > 0 && Math.random() < 0.72) {
+    // Enter where air is actually coming in, weighted by inflow.
+    const r = Math.random() * OB.total;
+    let lo = 0, hi = OB.cdf.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (OB.cdf[mid] < r) lo = mid + 1; else hi = mid; }
+    const p = lo * 3;
+    if (OB.arr[lo] === 1) {
+      tX[n] = OB.pos[p] + (Math.random() - 0.5); tY[n] = OB.pos[p + 1] - 0.2; tZ[n] = OB.pos[p + 2] + (Math.random() - 0.5);
+    } else {
+      tX[n] = OB.pos[p] + (Math.random() - 0.5); tY[n] = OB.pos[p + 1] + (Math.random() - 0.5); tZ[n] = OB.pos[p + 2] + 0.2 * OB.sign[lo];
+    }
+    return;
+  }
+  for (let tries = 0; tries < 30; tries++) {
+    const x = Math.random() * NX, y = Math.random() * NY, z = Math.random() * NZ;
+    if (cellType[ci(x | 0, y | 0, z | 0)] !== 1) { tX[n] = x; tY[n] = y; tZ[n] = z; return; }
+  }
+  tX[n] = NX / 2; tY[n] = NY - 2; tZ[n] = 2;
+}
+
+function stepTracers(dt) {
+  const s = dt * settings.tracerSpeed / h;
+  for (let n = 0; n < NT; n++) {
+    velAt(tX[n], tY[n], tZ[n]);
+    const x = tX[n] + VX * s, y = tY[n] + VY * s, z = tZ[n] + VZ * s;
+    tAge[n] += dt;
+    if (x < 0 || x >= NX || y < 0 || y >= NY || z < 0 || z >= NZ ||
+        cellType[ci(x | 0, y | 0, z | 0)] === 1 || tAge[n] > MAX_AGE) { spawnTracer(n, false); continue; }
+    tX[n] = x; tY[n] = y; tZ[n] = z;
+  }
+}
+
+/* ============================ Rendering =============================== */
+const canvas = $('#c');
 const ctx = canvas.getContext('2d');
 const trail = document.createElement('canvas');
 const tctx = trail.getContext('2d');
-const $ = (s) => document.querySelector(s);
-const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-const rnd = (a, b) => a + Math.random() * (b - a);
+let W = 0, H = 0;
+const DEFAULT_VIEW = { yaw: -0.72, pitch: -0.3, dist: 100 };
+const view = { ...DEFAULT_VIEW };
+let cyw, syw, cpt, spt, CX, CY, FOC, CAM;
+const TX = LX / 2, TY = LY / 2 - 1, TZ = LZ / 2;
+const LIGHT = (() => { const l = [-0.45, 0.8, -0.4]; const m = Math.hypot(...l); return l.map((x) => x / m); })();
 
-let W = 0, H = 0, focal = 800;
-const view = { yaw: 0.6, pitch: 0.22, dist: 150 };
-const state = { fanSpeed: 0.8, dust: false, paused: false, colorBy: 'temp', showFans: true, showCase: true };
-const fanLoad = {}; FANS.forEach(f => fanLoad[f.id] = f.p);
-const fanOn = {}; FANS.forEach(f => fanOn[f.id] = true);
-const fanAngle = FANS.map(() => 0);
-
-const PX = new Float64Array(N), PY = new Float64Array(N), PZ = new Float64Array(N);
-const PT = new Float64Array(N), PS = new Float64Array(N);
-const samp = COMPS.map(() => ({ sp: 0, t: 0, n: 0 }));
-
-/* ---------- Setup ----------------------------------------------------- */
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   W = window.innerWidth; H = window.innerHeight;
-  for (const c of [canvas, trail]) {
-    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
-  }
+  for (const c of [canvas, trail]) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  focal = Math.min(W, H) * 1.25;
-  clearAll();
+  clearTrails();
 }
-function clearAll() {
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = '#07080d';
-  ctx.fillRect(0, 0, W, H);
+function clearTrails() { tctx.clearRect(0, 0, W, H); tHas.fill(0); }
+
+function setupCam() {
+  cyw = Math.cos(view.yaw); syw = Math.sin(view.yaw);
+  cpt = Math.cos(view.pitch); spt = Math.sin(view.pitch);
+  const left = W > 700 ? 316 : 0, right = W > 1000 ? 290 : 0;
+  CX = left + (W - left - right) / 2;
+  CY = H / 2 + 6;
+  FOC = Math.min(W - left - right, H) * 1.3;
+  CAM = [TX + view.dist * cpt * syw, TY - view.dist * spt, TZ - view.dist * cpt * cyw];
 }
-
-/* ---------- Projection ----------------------------------------------- */
-// Returns [screenX, screenY, depth, scale] or null when behind the camera.
-function project(x, y, z) {
-  let px = x - TARGET[0], py = y - TARGET[1], pz = z - TARGET[2];
-  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
-  const x1 = px * cy + pz * sy, z1 = -px * sy + pz * cy;
-  const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
-  const y2 = py * cp - z1 * sp, z2 = py * sp + z1 * cp;
-  const depth = view.dist + z2;
-  if (depth < 5) return null;
-  const s = focal / depth;
-  return [W / 2 + x1 * s, H / 2 - y2 * s, depth, s];
+const PJ = [0, 0, 0];
+function proj(x, y, z) {
+  const px = x - TX, py = y - TY, pz = z - TZ;
+  const x1 = px * cyw + pz * syw, z1 = -px * syw + pz * cyw;
+  const y2 = py * cpt - z1 * spt, z2 = py * spt + z1 * cpt;
+  const d = view.dist + z2;
+  if (d < 1) return false;
+  const s = FOC / d;
+  PJ[0] = CX + x1 * s; PJ[1] = CY - y2 * s; PJ[2] = d;
+  return true;
 }
-
-/* ---------- Physics --------------------------------------------------- */
-let fx = 0, fy = 0, fz = 0;
-function field(x, y, z) {
-  fx = fy = fz = 0;
-  for (const f of FANS) {
-    if (!fanOn[f.id]) continue;
-    const mult = (f.kind === 'intake' && state.dust ? 0.5 : 1) * state.fanSpeed * fanLoad[f.id];
-    const dx = x - f.c[0], dy = y - f.c[1], dz = z - f.c[2];
-    const s = dx * f.a[0] + dy * f.a[1] + dz * f.a[2];           // along the axis
-    const px = dx - s * f.a[0], py = dy - s * f.a[1], pz = dz - s * f.a[2];
-    const sig = f.r * 0.9;
-    const g = Math.exp(-(px * px + py * py + pz * pz) / (2 * sig * sig)) * Math.exp(-Math.abs(s) / (f.r * 2));
-    fx += f.a[0] * mult * g; fy += f.a[1] * mult * g; fz += f.a[2] * mult * g;
-  }
+function projPts(pts) {
+  const out = [];
+  for (const p of pts) { if (!proj(p[0], p[1], p[2])) return null; out.push(PJ[0], PJ[1]); }
+  return out;
 }
-
-function insideBox(b, x, y, z) {
-  return x >= b.min[0] && x <= b.max[0] && y >= b.min[1] && y <= b.max[1] && z >= b.min[2] && z <= b.max[2];
-}
-
-function respawn(i) {
-  if (Math.random() < 0.7) {           // through the front mesh
-    PX[i] = rnd(-10, 10); PY[i] = rnd(4, 44); PZ[i] = 0.3;
-  } else {                              // through the bottom PSU intake
-    PX[i] = rnd(-9, 9); PY[i] = 0.3; PZ[i] = rnd(2, 24);
-  }
-  PT[i] = AMBIENT;
-}
-
-function stepParticles(dt) {
-  for (const s of samp) { s.sp = 0; s.t = 0; s.n = 0; }
-  for (let i = 0; i < N; i++) {
-    let x = PX[i], y = PY[i], z = PZ[i];
-    if (x < CASE.x0 || x > CASE.x1 || y < CASE.y0 || y > CASE.y1 || z < CASE.z0 || z > CASE.z1) {
-      respawn(i); x = PX[i]; y = PY[i]; z = PZ[i];
-    }
-    field(x, y, z);
-    let vx = fx * SIM_SPEED, vy = fy * SIM_SPEED, vz = fz * SIM_SPEED;
-    const jitter = 0.8 * state.fanSpeed;
-    vx += (Math.random() - 0.5) * jitter; vy += (Math.random() - 0.5) * jitter; vz += (Math.random() - 0.5) * jitter;
-
-    let blocked = null;
-    for (const c of COMPS) if (insideBox(c, x, y, z)) { blocked = c; break; }
-    if (blocked) { vx *= 0.2; vy *= 0.2; vz *= 0.2; }
-
-    let nx = x + vx * dt, ny = y + vy * dt, nz = z + vz * dt;
-
-    // Push out of any component entered this step, along the nearest face.
-    for (const c of COMPS) {
-      if (!insideBox(c, nx, ny, nz)) continue;
-      const d = [nx - c.min[0], c.max[0] - nx, ny - c.min[1], c.max[1] - ny, nz - c.min[2], c.max[2] - nz];
-      let m = 0; for (let j = 1; j < 6; j++) if (d[j] < d[m]) m = j;
-      const e = 0.01;
-      if (m === 0) nx = c.min[0] - e; else if (m === 1) nx = c.max[0] + e;
-      else if (m === 2) ny = c.min[1] - e; else if (m === 3) ny = c.max[1] + e;
-      else if (m === 4) nz = c.min[2] - e; else nz = c.max[2] + e;
-    }
-
-    PX[i] = nx; PY[i] = ny; PZ[i] = nz;
-    const sp = Math.hypot(vx, vy, vz);
-    PS[i] = sp;
-
-    if (blocked) PT[i] += (blocked.T - PT[i]) * Math.min(1, 5 * dt);
-
-    // Collect the air around each component (shell outside the box).
-    for (let k = 0; k < COMPS.length; k++) {
-      const c = COMPS[k], m = 2.5;
-      if (nx >= c.min[0] - m && nx <= c.max[0] + m && ny >= c.min[1] - m && ny <= c.max[1] + m &&
-          nz >= c.min[2] - m && nz <= c.max[2] + m && !insideBox(c, nx, ny, nz)) {
-        samp[k].sp += sp; samp[k].t += PT[i]; samp[k].n++;
-      }
-    }
-  }
-}
-
-function stepComponents(dt) {
-  COMPS.forEach((c, k) => {
-    const s = samp[k];
-    const flow = s.n ? s.sp / s.n : 0;
-    const flowNorm = clamp(flow / (SIM_SPEED * 0.15), 0, 2);
-    const air = s.n ? s.t / s.n : AMBIENT;
-    const target = air + c.watts * (c.k / (0.2 + flowNorm));
-    c.T += (target - c.T) * (1 - Math.exp(-dt / 2.5));
-  });
-}
-
-/* ---------- Drawing helpers ------------------------------------------- */
-function tempHue(t) { return 240 - clamp((t - AMBIENT) / (95 - AMBIENT), 0, 1) * 240; }
-function speedHue(s) { return 200 - clamp(s / (SIM_SPEED * 0.8), 0, 1) * 160; }
-
-function line3(a, b, color, w = 1) {
-  const p = project(...a), q = project(...b);
-  if (!p || !q) return;
-  ctx.strokeStyle = color; ctx.lineWidth = w;
-  ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
-}
-function quad3(pts, fill) {
-  const pr = pts.map(p => project(...p));
-  if (pr.some(v => !v)) return;
+function poly(sp) {
   ctx.beginPath();
-  ctx.moveTo(pr[0][0], pr[0][1]);
-  for (let i = 1; i < pr.length; i++) ctx.lineTo(pr[i][0], pr[i][1]);
+  ctx.moveTo(sp[0], sp[1]);
+  for (let n = 2; n < sp.length; n += 2) ctx.lineTo(sp[n], sp[n + 1]);
   ctx.closePath();
-  ctx.fillStyle = fill; ctx.fill();
 }
+const dist2 = (p) => (p[0] - CAM[0]) ** 2 + (p[1] - CAM[1]) ** 2 + (p[2] - CAM[2]) ** 2;
 
-function drawCase() {
-  const { x0, x1, y0, y1, z0, z1 } = CASE;
-  const edge = 'rgba(160,190,255,0.35)';
-  // Corners
-  const v = (x, y, z) => [x, y, z];
-  // Side panel (glass) and top/bottom surfaces, translucent so the inside stays visible
-  if (state.showCase) {
-    quad3([v(x1, y0, z0), v(x1, y1, z0), v(x1, y1, z1), v(x1, y0, z1)], 'rgba(120,150,220,0.05)');
-    quad3([v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], 'rgba(120,150,220,0.035)');
-    quad3([v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1)], 'rgba(120,150,220,0.035)');
+function hslRgb(hh, s, l) {
+  hh /= 360;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  return [f(hh + 1 / 3) * 255, f(hh) * 255, f(hh - 1 / 3) * 255];
+}
+const heatHue = (t) => 230 - 230 * clamp(t, 0, 1);
+const compHue = (tc) => heatHue((tc - 30) / 65);
+
+const FACES = [
+  { n: [-1, 0, 0], c: [0, 2, 6, 4] }, { n: [1, 0, 0], c: [1, 3, 7, 5] },
+  { n: [0, -1, 0], c: [0, 1, 5, 4] }, { n: [0, 1, 0], c: [2, 3, 7, 6] },
+  { n: [0, 0, -1], c: [0, 1, 3, 2] }, { n: [0, 0, 1], c: [4, 5, 7, 6] }
+];
+function boxItems(items, b, col, alpha, tint) {
+  const corner = (m) => [m & 1 ? b.max[0] : b.min[0], m & 2 ? b.max[1] : b.min[1], m & 4 ? b.max[2] : b.min[2]];
+  const cs = [0, 1, 2, 3, 4, 5, 6, 7].map(corner);
+  for (const f of FACES) {
+    const pts = f.c.map((m) => cs[m]);
+    const fc = [0, 1, 2].map((a) => (pts[0][a] + pts[2][a]) / 2);
+    if (f.n[0] * (CAM[0] - fc[0]) + f.n[1] * (CAM[1] - fc[1]) + f.n[2] * (CAM[2] - fc[2]) <= 0) continue;
+    const sp = projPts(pts);
+    if (!sp) continue;
+    const lit = 0.42 + 0.58 * Math.max(0, f.n[0] * LIGHT[0] + f.n[1] * LIGHT[1] + f.n[2] * LIGHT[2]);
+    let r = col[0], g = col[1], bl = col[2];
+    if (tint) { r = r * 0.6 + tint[0] * 0.4; g = g * 0.6 + tint[1] * 0.4; bl = bl * 0.6 + tint[2] * 0.4; }
+    items.push({ d: dist2(fc), sp, fill: `rgba(${r * lit | 0},${g * lit | 0},${bl * lit | 0},${alpha})` });
   }
-  // Frame edges
-  const corners = [
-    [x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]
-  ];
-  const E = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-  for (const [a, b] of E) line3(corners[a], corners[b], edge, 1.4);
-
-  // Front intake mesh outline
-  const fm = [[-10,4,0],[10,4,0],[10,44,0],[-10,44,0]];
-  for (let i = 0; i < 4; i++) line3(fm[i], fm[(i + 1) % 4], 'rgba(124,245,208,0.45)', 1);
-  // Rear mesh outline
-  const rm = [[-6,30,z1],[6,30,z1],[6,44,z1],[-6,44,z1]];
-  for (let i = 0; i < 4; i++) line3(rm[i], rm[(i + 1) % 4], 'rgba(255,170,110,0.4)', 1);
-  // Motherboard plate
-  const mb = [[-7.5,2,6],[-7.5,40,6],[-7.5,40,40],[-7.5,2,40]];
-  quad3(mb, 'rgba(60,70,100,0.12)');
-
-  // Axis labels
-  const label = (t, p) => {
-    const q = project(...p);
-    if (!q) return;
-    ctx.fillStyle = 'rgba(232,236,245,0.55)';
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(t, q[0], q[1]);
-    ctx.textAlign = 'left';
-  };
-  label('FRONT', [0, 48, -3]);
-  label('REAR', [0, 48, 50]);
-  label('TOP', [0, 50, 22]);
-  label('BOTTOM', [0, -3, 22]);
 }
 
-function drawFans(dt) {
-  FANS.forEach((f, i) => {
-    const mult = (f.kind === 'intake' && state.dust ? 0.5 : 1) * state.fanSpeed * fanLoad[f.id] * (fanOn[f.id] ? 1 : 0);
-    fanAngle[i] += dt * mult * 22 * f.spin;
-    if (!state.showFans) return;
-    // Two in-plane unit vectors perpendicular to the axis.
-    const a = f.a;
-    const u = a[1] !== 0 ? [1, 0, 0] : [0, 1, 0];
-    const v = [a[1] * u[2] - a[2] * u[1], a[2] * u[0] - a[0] * u[2], a[0] * u[1] - a[1] * u[0]];
-    const ring = (rad, n = 40) => {
-      const pts = [];
-      for (let k = 0; k < n; k++) {
-        const t = (k / n) * Math.PI * 2;
-        const ct = Math.cos(t) * rad, st = Math.sin(t) * rad;
-        pts.push([f.c[0] + u[0] * ct + v[0] * st, f.c[1] + u[1] * ct + v[1] * st, f.c[2] + u[2] * ct + v[2] * st]);
-      }
-      return pts;
-    };
-    const col = f.kind === 'intake' ? 'rgba(124,245,208,' : 'rgba(255,170,110,';
-    const ringPts = ring(f.r);
-    ctx.strokeStyle = col + (fanOn[f.id] ? '0.85)' : '0.25)');
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    let started = false;
-    for (const p of ringPts) {
-      const q = project(...p);
-      if (!q) continue;
-      if (!started) { ctx.moveTo(q[0], q[1]); started = true; } else ctx.lineTo(q[0], q[1]);
-    }
-    ctx.closePath(); ctx.stroke();
+function drawFan(f) {
+  const a = f.axis;
+  const U = a === 0 ? [0, 1, 0] : [1, 0, 0];
+  const V = a === 2 ? [0, 1, 0] : [0, 0, 1];
+  const c = f.center;
+  const at = (r, th) => [c[0] + (U[0] * Math.cos(th) + V[0] * Math.sin(th)) * r,
+                         c[1] + (U[1] * Math.cos(th) + V[1] * Math.sin(th)) * r,
+                         c[2] + (U[2] * Math.cos(th) + V[2] * Math.sin(th)) * r];
+  const ring = [];
+  for (let n = 0; n < 28; n++) ring.push(at(f.r, (n / 28) * Math.PI * 2));
+  const sp = projPts(ring);
+  if (!sp) return;
+  const col = !f.active ? '120,128,145' : f.group === 'case' ? (f.mode === 'in' ? '124,245,208' : '255,170,110') : '210,220,240';
+  if (f.group === 'case') {
+    const s = f.r + 0.2;
+    const sq = projPts([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([p, q]) => [
+      c[0] + (U[0] * p + V[0] * q) * s, c[1] + (U[1] * p + V[1] * q) * s, c[2] + (U[2] * p + V[2] * q) * s]));
+    if (sq) { poly(sq); ctx.fillStyle = 'rgba(12,14,19,0.55)'; ctx.fill(); ctx.strokeStyle = 'rgba(70,76,92,0.8)'; ctx.lineWidth = 1; ctx.stroke(); }
+  }
+  poly(sp);
+  ctx.fillStyle = 'rgba(8,10,14,0.55)';
+  ctx.fill();
+  ctx.strokeStyle = `rgba(${col},${f.active ? 0.9 : 0.5})`;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(${col},0.55)`;
+  ctx.lineWidth = 2;
+  for (let b = 0; b < 7; b++) {
+    const th = f.angle + (b * Math.PI * 2) / 7;
+    const bp = projPts([at(f.hub, th), at(f.r * 0.6, th + 0.28 * f.spin), at(f.r * 0.95, th + 0.5 * f.spin)]);
+    if (!bp) continue;
+    ctx.beginPath(); ctx.moveTo(bp[0], bp[1]); ctx.quadraticCurveTo(bp[2], bp[3], bp[4], bp[5]); ctx.stroke();
+  }
+  const hub = projPts([c]);
+  const hr = projPts([at(f.hub, 0)]);
+  if (hub) {
+    const rad = hr ? Math.max(2, Math.hypot(hr[0] - hub[0], hr[1] - hub[1])) : 3;
+    ctx.beginPath(); ctx.arc(hub[0], hub[1], rad, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(30,33,40,0.95)'; ctx.fill();
+    ctx.strokeStyle = `rgba(${col},0.7)`; ctx.lineWidth = 1; ctx.stroke();
+  }
+}
 
-    // Blades: five spokes
-    ctx.strokeStyle = 'rgba(232,236,245,0.35)';
-    ctx.lineWidth = 1.5;
-    for (let b = 0; b < 5; b++) {
-      const th = fanAngle[i] + (b * Math.PI * 2) / 5;
-      const ct = Math.cos(th) * f.r * 0.9, st = Math.sin(th) * f.r * 0.9;
-      const tip = [f.c[0] + u[0] * ct + v[0] * st, f.c[1] + u[1] * ct + v[1] * st, f.c[2] + u[2] * ct + v[2] * st];
-      line3(f.c, tip, 'rgba(232,236,245,0.3)', 1.5);
+const WALLS = [
+  { name: 'glass', n: [-1, 0, 0], pts: [[0, 0, 0], [0, LY, 0], [0, LY, LZ], [0, 0, LZ]] },
+  { name: 'tray',  n: [1, 0, 0],  pts: [[LX, 0, 0], [LX, LY, 0], [LX, LY, LZ], [LX, 0, LZ]] },
+  { name: 'bottom', n: [0, -1, 0], pts: [[0, 0, 0], [LX, 0, 0], [LX, 0, LZ], [0, 0, LZ]] },
+  { name: 'top',   n: [0, 1, 0],  pts: [[0, LY, 0], [LX, LY, 0], [LX, LY, LZ], [0, LY, LZ]] },
+  { name: 'front', n: [0, 0, -1], pts: [[0, 0, 0], [LX, 0, 0], [LX, LY, 0], [0, LY, 0]] },
+  { name: 'rear',  n: [0, 0, 1],  pts: [[0, 0, LZ], [LX, 0, LZ], [LX, LY, LZ], [0, LY, LZ]] }
+];
+function drawWalls(near) {
+  for (const wl of WALLS) {
+    const fc = [0, 1, 2].map((a) => (wl.pts[0][a] + wl.pts[2][a]) / 2);
+    const facing = wl.n[0] * (CAM[0] - fc[0]) + wl.n[1] * (CAM[1] - fc[1]) + wl.n[2] * (CAM[2] - fc[2]) > 0;
+    if (facing !== near) continue;
+    const sp = projPts(wl.pts);
+    if (!sp) continue;
+    let fill;
+    if (wl.name === 'glass') fill = near ? 'rgba(150,180,230,0.05)' : 'rgba(150,180,230,0.03)';
+    else if (near) fill = settings.panels ? 'rgba(14,16,22,0.16)' : null;
+    else fill = wl.name === 'tray' ? 'rgba(17,19,26,0.97)' : wl.name === 'bottom' ? 'rgba(15,16,21,0.95)' : 'rgba(19,21,28,0.7)';
+    if (fill) { poly(sp); ctx.fillStyle = fill; ctx.fill(); }
+    if ((wl.name === 'front' || wl.name === 'rear' || wl.name === 'top') && (settings.panels || !near)) {
+      ctx.fillStyle = near ? 'rgba(200,212,235,0.16)' : 'rgba(200,212,235,0.12)';
+      for (const vt of VENTS) {
+        if (vt.wall !== wl.name) continue;
+        for (let a = vt.r[0] + 0.6; a < vt.r[2]; a += 1.25) for (let b = vt.r[1] + 0.6; b < vt.r[3]; b += 1.25) {
+          const ok = wl.name === 'top' ? proj(a, LY, b) : proj(a, b, wl.name === 'front' ? 0 : LZ);
+          if (ok) ctx.fillRect(PJ[0] - 0.6, PJ[1] - 0.6, 1.2, 1.2);
+        }
+      }
     }
-    // Hub
-    const hub = project(...f.c);
-    if (hub) { ctx.fillStyle = 'rgba(232,236,245,0.5)'; ctx.beginPath(); ctx.arc(hub[0], hub[1], 2.5, 0, Math.PI * 2); ctx.fill(); }
+  }
+  if (near) {
+    const c = [[0, 0, 0], [LX, 0, 0], [LX, LY, 0], [0, LY, 0], [0, 0, LZ], [LX, 0, LZ], [LX, LY, LZ], [0, LY, LZ]];
+    const E = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+    ctx.strokeStyle = 'rgba(160,190,255,0.32)';
+    ctx.lineWidth = 1.2;
+    for (const [a, b] of E) {
+      const sp = projPts([c[a], c[b]]);
+      if (sp) { ctx.beginPath(); ctx.moveTo(sp[0], sp[1]); ctx.lineTo(sp[2], sp[3]); ctx.stroke(); }
+    }
+  }
+}
+
+function drawScene() {
+  const items = [];
+  const tints = COMPS.map((c, k) => hslRgb(compHue(c.T + compPower(k) * c.theta), 0.8, 0.5));
+  for (const s of SCENE.solids) boxItems(items, s.b, s.col, 0.95, s.comp !== undefined ? tints[s.comp] : null);
+  for (const p of SCENE.plates) boxItems(items, p.b, p.col, 0.95, null);
+  for (const p of SCENE.porous) boxItems(items, p.b, p.col, 0.62, tints[p.comp]);
+  for (const f of SCENE.fans) {
+    const dx = [CAM[0] - f.center[0], CAM[1] - f.center[1], CAM[2] - f.center[2]][f.axis];
+    if (!f.view.includes(Math.sign(dx))) continue;
+    items.push({ d: dist2(f.center) - 6, fan: f });
+  }
+  items.sort((a, b) => b.d - a.d);
+  for (const it of items) {
+    if (it.fan) { drawFan(it.fan); continue; }
+    poly(it.sp);
+    ctx.fillStyle = it.fill;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+const SLICE_N = (Math.max(NX, NY, NZ) + 1) ** 2;
+const SLICE_PTS = new Float32Array(SLICE_N * 2);
+const SLICE_OK = new Uint8Array(SLICE_N);
+function drawSlice() {
+  const mode = settings.slice;
+  if (mode === 'off') return;
+  const sp = settings.slicePos, amb = settings.ambient;
+  const [na, nb, pos] = mode === 'x' ? [NY, NZ, Math.min(NX - 1, sp * NX | 0)]
+    : mode === 'y' ? [NX, NZ, Math.min(NY - 1, sp * NY | 0)] : [NX, NY, Math.min(NZ - 1, sp * NZ | 0)];
+  const worldOf = (a, b) => mode === 'x' ? [(pos + 0.5) * h, a * h, b * h]
+    : mode === 'y' ? [a * h, (pos + 0.5) * h, b * h] : [a * h, b * h, (pos + 0.5) * h];
+  for (let b = 0; b <= nb; b++) for (let a = 0; a <= na; a++) {
+    const p = worldOf(a, b), n = a + b * (na + 1);
+    SLICE_OK[n] = proj(p[0], p[1], p[2]) ? 1 : 0;
+    SLICE_PTS[n * 2] = PJ[0]; SLICE_PTS[n * 2 + 1] = PJ[1];
+  }
+  for (let b = 0; b < nb; b++) for (let a = 0; a < na; a++) {
+    const c = mode === 'x' ? ci(pos, a, b) : mode === 'y' ? ci(a, pos, b) : ci(a, b, pos);
+    const n0 = a + b * (na + 1), n1 = n0 + 1, n2 = n0 + na + 2, n3 = n0 + na + 1;
+    if (!(SLICE_OK[n0] && SLICE_OK[n1] && SLICE_OK[n2] && SLICE_OK[n3])) continue;
+    if (cellType[c] === 1) ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    else {
+      const t = settings.colorBy === 'temp' ? (T[c] - amb) / 25 : cellSpeed(c) / 150;
+      ctx.fillStyle = `hsla(${heatHue(t) | 0},88%,55%,0.6)`;
+    }
+    ctx.beginPath();
+    ctx.moveTo(SLICE_PTS[n0 * 2], SLICE_PTS[n0 * 2 + 1]);
+    ctx.lineTo(SLICE_PTS[n1 * 2], SLICE_PTS[n1 * 2 + 1]);
+    ctx.lineTo(SLICE_PTS[n2 * 2], SLICE_PTS[n2 * 2 + 1]);
+    ctx.lineTo(SLICE_PTS[n3 * 2], SLICE_PTS[n3 * 2 + 1]);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// Tracers are drawn as short streaks on a fading layer, batched by colour.
+const NB = 24;
+const BUCKET_COL = Array.from({ length: NB }, (_, b) => `hsla(${heatHue(b / (NB - 1)) | 0},92%,64%,0.85)`);
+const bucketSeg = Array.from({ length: NB }, () => new Float32Array(NT * 4));
+const bucketN = new Int32Array(NB);
+function drawTracers() {
+  tctx.globalCompositeOperation = 'destination-out';
+  tctx.fillStyle = 'rgba(0,0,0,0.14)';
+  tctx.fillRect(0, 0, W, H);
+  tctx.globalCompositeOperation = 'source-over';
+  bucketN.fill(0);
+  const amb = settings.ambient, byTemp = settings.colorBy === 'temp';
+  for (let n = 0; n < NT; n++) {
+    if (!proj(tX[n] * h, tY[n] * h, tZ[n] * h)) { tHas[n] = 0; continue; }
+    const sx = PJ[0], sy = PJ[1];
+    if (tHas[n]) {
+      let t;
+      if (byTemp) t = (trilerp(T, NX, NY, NZ, tX[n] - 0.5, tY[n] - 0.5, tZ[n] - 0.5) - amb) / 25;
+      else { velAt(tX[n], tY[n], tZ[n]); t = Math.sqrt(VX * VX + VY * VY + VZ * VZ) / 150; }
+      const b = Math.round(clamp(t, 0, 1) * (NB - 1));
+      const seg = bucketSeg[b], m = bucketN[b] * 4;
+      seg[m] = tSX[n]; seg[m + 1] = tSY[n]; seg[m + 2] = sx; seg[m + 3] = sy;
+      bucketN[b]++;
+    }
+    tSX[n] = sx; tSY[n] = sy; tHas[n] = 1;
+  }
+  tctx.lineWidth = 1.3;
+  tctx.lineCap = 'round';
+  for (let b = 0; b < NB; b++) {
+    const cnt = bucketN[b];
+    if (!cnt) continue;
+    const seg = bucketSeg[b];
+    tctx.beginPath();
+    for (let m = 0; m < cnt * 4; m += 4) { tctx.moveTo(seg[m], seg[m + 1]); tctx.lineTo(seg[m + 2], seg[m + 3]); }
+    tctx.strokeStyle = BUCKET_COL[b];
+    tctx.stroke();
+  }
+}
+
+const LABEL_OFF = { GPU: [-150, 80], CPU: [-150, -95], SSD: [150, 70], RAM: [140, -70], VRM: [120, -140] };
+function drawLabels() {
+  ctx.font = '600 12px system-ui, sans-serif';
+  COMPS.forEach((c, k) => {
+    if (!proj(c.anchor[0], c.anchor[1], c.anchor[2])) return;
+    const ax = PJ[0], ay = PJ[1];
+    const [ox, oy] = LABEL_OFF[c.id];
+    const lx = ax + ox * (FOC / 1100), ly = ay + oy * (FOC / 1100);
+    const temp = c.T + compPower(k) * c.theta;
+    const txt = `${c.id}  ${Math.round(temp)}°C`;
+    const tw = ctx.measureText(txt).width + 22;
+    ctx.strokeStyle = 'rgba(232,236,245,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(lx, ly); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ax, ay, 2.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(232,236,245,0.8)'; ctx.fill();
+    const x0 = lx - tw / 2, y0 = ly - 11;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x0, y0, tw, 22, 11); else ctx.rect(x0, y0, tw, 22);
+    ctx.fillStyle = temp > c.warn ? 'rgba(80,20,18,0.92)' : 'rgba(14,16,24,0.88)';
+    ctx.fill();
+    ctx.strokeStyle = `hsla(${compHue(temp) | 0},85%,62%,0.9)`;
+    ctx.stroke();
+    ctx.beginPath(); ctx.arc(x0 + 11, ly, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${compHue(temp) | 0},85%,60%)`; ctx.fill();
+    ctx.fillStyle = '#eef3ff';
+    ctx.textAlign = 'left';
+    ctx.fillText(txt, x0 + 19, ly + 4);
   });
 }
 
-function drawComponents() {
-  // Painter's order: far to near by box center depth.
-  const order = COMPS.map((c, k) => {
-    const cx = (c.min[0] + c.max[0]) / 2, cy = (c.min[1] + c.max[1]) / 2, cz = (c.min[2] + c.max[2]) / 2;
-    const p = project(cx, cy, cz);
-    return { c, depth: p ? p[2] : 0 };
-  }).sort((a, b) => b.depth - a.depth);
-
-  for (const { c } of order) {
-    const hue = tempHue(c.T);
-    const [x0, y0, z0] = c.min, [x1, y1, z1] = c.max;
-    const faces = [
-      [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0]],
-      [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],
-      [[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],
-      [[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],
-      [[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[x0,y0,z1]],
-      [[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]]
-    ];
-    for (const f of faces) quad3(f, `hsla(${hue},70%,45%,0.22)`);
-    const edges = [[0,1],[1,2],[2,3],[3,0]];
-    const cs = [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
-    const ee = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-    for (const [a, b] of ee) line3(cs[a], cs[b], `hsla(${hue},85%,65%,${c.T > WARN_T ? 0.95 : 0.6})`, c.T > WARN_T ? 2 : 1.2);
-    const mid = project((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
-    if (mid) {
-      ctx.fillStyle = '#eef3ff';
-      ctx.font = '600 12px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${c.id} ${Math.round(c.T)}°`, mid[0], mid[1] + 4);
-      ctx.textAlign = 'left';
-    }
-  }
+function render(dt) {
+  setupCam();
+  const g = ctx.createRadialGradient(CX, CY, 50, CX, CY, Math.max(W, H) * 0.7);
+  g.addColorStop(0, '#10131c'); g.addColorStop(1, '#05060a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  if (!settings.paused) for (const f of SCENE.fans) if (f.active) f.angle += dt * 26 * f.pct * f.spin;
+  drawWalls(false);
+  drawScene();
+  drawSlice();
+  ctx.drawImage(trail, 0, 0, W, H);
+  drawWalls(true);
+  if (settings.labels) drawLabels();
 }
 
-function drawParticles(g) {
-  g.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < N; i++) {
-    const p = project(PX[i], PY[i], PZ[i]);
-    if (!p) continue;
-    const hue = state.colorBy === 'temp' ? tempHue(PT[i]) : speedHue(PS[i]);
-    const r = clamp(1.6 * p[3] / 1.2, 1.2, 3.2);
-    g.fillStyle = `hsla(${hue},90%,66%,0.7)`;
-    g.fillRect(p[0] - r / 2, p[1] - r / 2, r, r);
-  }
-  g.globalCompositeOperation = 'source-over';
-}
-
-/* ---------- UI -------------------------------------------------------- */
+/* ============================== UI ==================================== */
 function slider(parent, label, min, max, step, value, onInput, fmt) {
   const wrap = document.createElement('div');
   wrap.className = 'ctl';
@@ -408,52 +1164,99 @@ function slider(parent, label, min, max, step, value, onInput, fmt) {
   top.append(name, out);
   const input = document.createElement('input');
   input.type = 'range'; input.min = min; input.max = max; input.step = step; input.value = value;
-  const paint = () => {
-    input.style.setProperty('--p', ((input.value - min) / (max - min)) * 100 + '%');
-    out.textContent = fmt(+input.value);
-  };
+  input.setAttribute('aria-label', label);
+  const paint = () => { input.style.setProperty('--p', ((input.value - min) / (max - min)) * 100 + '%'); out.textContent = fmt(+input.value); };
   input.addEventListener('input', () => { paint(); onInput(+input.value); });
   paint();
   wrap.append(top, input);
   parent.append(wrap);
+  return { set(x) { input.value = x; paint(); } };
+}
+function fillSelect(el, opts, value, onChange) {
+  el.innerHTML = '';
+  for (const [val, label] of opts) el.append(new Option(label, val));
+  el.value = value;
+  el.addEventListener('change', () => onChange(el.value));
+}
+
+const SCENARIOS = {
+  current:   { label: 'Scenario: 2 front in, rear out', slots: { F1: 'in', F2: 'in', F3: 'off', T1: 'off', T2: 'off', R: 'out' }, dust: false },
+  third:     { label: 'Add the third front intake', slots: { F1: 'in', F2: 'in', F3: 'in', T1: 'off', T2: 'off', R: 'out' }, dust: false },
+  top:       { label: 'Add two top exhausts', slots: { F1: 'in', F2: 'in', F3: 'off', T1: 'out', T2: 'out', R: 'out' }, dust: false },
+  rearIn:    { label: 'Mistake: rear fan blowing in', slots: { F1: 'in', F2: 'in', F3: 'off', T1: 'off', T2: 'off', R: 'in' }, dust: false },
+  backwards: { label: 'Mistake: front fans reversed', slots: { F1: 'out', F2: 'out', F3: 'off', T1: 'off', T2: 'off', R: 'out' }, dust: false },
+  dusty:     { label: 'Clogged dust filters', slots: { F1: 'in', F2: 'in', F3: 'off', T1: 'off', T2: 'off', R: 'out' }, dust: true },
+  passive:   { label: 'All case fans off', slots: { F1: 'off', F2: 'off', F3: 'off', T1: 'off', T2: 'off', R: 'off' }, dust: false },
+  custom:    { label: 'Scenario: custom' }
+};
+const slotEls = {};
+
+function applyScenario(key) {
+  const sc = SCENARIOS[key];
+  if (!sc || !sc.slots) return;
+  Object.assign(settings.slots, sc.slots);
+  for (const k in slotEls) slotEls[k].value = settings.slots[k];
+  settings.dust = sc.dust;
+  $('#dust').checked = sc.dust;
+  $('#scenario').value = key;
+  buildDrag();
+  updateFanTargets();
 }
 
 function buildUI() {
-  const fanCtl = $('#fanCtl');
-  slider(fanCtl, 'Fan speed (all)', 0, 1, 0.01, state.fanSpeed, (v) => { state.fanSpeed = v; }, (v) => Math.round(v * 100) + '%');
-  for (const f of FANS) {
-    const row = document.createElement('label');
-    row.className = 'check';
-    row.innerHTML = `<input type="checkbox" checked> ${f.id} <span style="color:var(--muted);margin-left:auto">${f.kind}</span>`;
-    row.querySelector('input').addEventListener('change', (e) => { fanOn[f.id] = e.target.checked; });
-    fanCtl.append(row);
-  }
-  $('#dust').addEventListener('change', (e) => { state.dust = e.target.checked; });
-  $('#showFans').addEventListener('change', (e) => { state.showFans = e.target.checked; });
-  $('#showCase').addEventListener('change', (e) => { state.showCase = e.target.checked; });
-
-  const loadCtl = $('#loadCtl');
-  for (const c of COMPS) {
-    slider(loadCtl, c.id + ' power', 0, c.id === 'GPU' ? 450 : 250, 1, c.watts, (v) => { c.watts = v; }, (v) => v + ' W');
-  }
-
-  const sel = $('#colorBy');
-  sel.append(new Option('Color air by temperature', 'temp'));
-  sel.append(new Option('Color air by speed', 'speed'));
-  sel.addEventListener('change', () => { state.colorBy = sel.value; });
-
-  $('#pause').addEventListener('click', (e) => {
-    state.paused = !state.paused;
-    e.target.textContent = state.paused ? 'Play' : 'Pause';
+  fillSelect($('#cooler'), Object.entries(COOLERS).map(([k, c]) => [k, c.label]), settings.cooler, (val) => {
+    settings.cooler = val; rebuild();
   });
-  $('#reset').addEventListener('click', resetAir);
-  $('#view').addEventListener('click', () => { view.yaw = 0.6; view.pitch = 0.22; view.dist = 150; });
+  fillSelect($('#scenario'), Object.entries(SCENARIOS).map(([k, s]) => [k, s.label]), 'current', applyScenario);
+
+  slider($('#caseFans'), 'Case fan speed', 0, 1, 0.01, settings.caseFan, (x) => { settings.caseFan = x; updateFanTargets(); },
+    (x) => Math.round(x * 100) + '%');
+  const slots = $('#slots');
+  for (const [k, label, tag] of [['F1', 'Front 1', 'top'], ['F2', 'Front 2', 'middle'], ['F3', 'Front 3', 'bottom'],
+    ['T1', 'Top 1', 'front'], ['T2', 'Top 2', 'rear'], ['R', 'Rear', '']]) {
+    const row = document.createElement('div');
+    row.className = 'slot';
+    row.innerHTML = `<span>${label} <span class="tag">${tag}</span></span>`;
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', label + ' fan');
+    fillSelect(sel, [['in', 'Intake'], ['out', 'Exhaust'], ['off', 'Empty / off']], settings.slots[k], (val) => {
+      settings.slots[k] = val; updateFanTargets(); $('#scenario').value = 'custom';
+    });
+    row.append(sel);
+    slots.append(row);
+    slotEls[k] = sel;
+  }
+  $('#dust').addEventListener('change', (e) => { settings.dust = e.target.checked; buildDrag(); $('#scenario').value = 'custom'; });
+
+  slider($('#compFans'), 'GPU fans', 0, 1, 0.01, settings.gpuFan, (x) => { settings.gpuFan = x; updateFanTargets(); }, (x) => Math.round(x * 100) + '%');
+  slider($('#compFans'), 'CPU fan', 0, 1, 0.01, settings.cpuFan, (x) => { settings.cpuFan = x; updateFanTargets(); }, (x) => Math.round(x * 100) + '%');
+
+  const loads = $('#loads');
+  slider(loads, 'GPU power', 0, 450, 5, settings.gpuW, (x) => { settings.gpuW = x; }, (x) => x + ' W');
+  slider(loads, 'CPU power', 0, 170, 1, settings.cpuW, (x) => { settings.cpuW = x; }, (x) => x + ' W');
+  slider(loads, 'SSD power', 0, 9, 0.5, settings.ssdW, (x) => { settings.ssdW = x; }, (x) => x + ' W');
+  slider(loads, 'Room temperature', 15, 35, 0.5, settings.ambient, (x) => { settings.ambient = x; }, (x) => x + ' °C');
+
+  fillSelect($('#colorBy'), [['temp', 'Color air by temperature'], ['speed', 'Color air by speed']], settings.colorBy, (val) => {
+    settings.colorBy = val; clearTrails();
+  });
+  fillSelect($('#slice'), [['off', 'Slice: off'], ['x', 'Slice: front-to-back (parallel to glass)'],
+    ['z', 'Slice: cross-section (parallel to front)'], ['y', 'Slice: horizontal']], settings.slice, (val) => { settings.slice = val; });
+  slider($('#viewCtl'), 'Slice position', 0, 1, 0.01, settings.slicePos, (x) => { settings.slicePos = x; }, (x) => Math.round(x * 100) + '%');
+  slider($('#viewCtl'), 'Tracer speed (slow motion)', 0.03, 0.5, 0.01, settings.tracerSpeed, (x) => { settings.tracerSpeed = x; },
+    (x) => '1/' + Math.round(1 / x) + '×');
+  $('#panels').addEventListener('change', (e) => { settings.panels = e.target.checked; });
+  $('#labels').addEventListener('change', (e) => { settings.labels = e.target.checked; });
+
+  $('#pause').addEventListener('click', (e) => { settings.paused = !settings.paused; e.target.textContent = settings.paused ? 'Play' : 'Pause'; });
+  $('#reset').addEventListener('click', resetFlow);
+  $('#view').addEventListener('click', () => { Object.assign(view, DEFAULT_VIEW); clearTrails(); });
 
   const temps = $('#temps');
   for (const c of COMPS) {
     const row = document.createElement('div');
-    row.className = 'trow';
-    row.innerHTML = `<span>${c.id}</span><div class="bar"><i></i></div><span class="tv"></span>`;
+    row.className = 'row';
+    row.innerHTML = `<span>${c.id}</span><div class="bar"><i></i></div><span class="v"></span>`;
     temps.append(row);
     c.row = row;
   }
@@ -461,29 +1264,56 @@ function buildUI() {
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
     if (e.key === ' ') { e.preventDefault(); $('#pause').click(); }
-    if (e.key.toLowerCase() === 'r') resetAir();
+    else if (e.key.toLowerCase() === 'r') resetFlow();
   });
 }
 
-function updateUI() {
-  for (const c of COMPS) {
+function updateStats() {
+  const warns = [];
+  COMPS.forEach((c, k) => {
+    const t = c.T + compPower(k) * c.theta;
     const bar = c.row.querySelector('.bar i');
-    bar.style.width = clamp((c.T - AMBIENT) / (110 - AMBIENT), 0, 1) * 100 + '%';
-    bar.style.background = `hsl(${tempHue(c.T)},80%,58%)`;
-    const tv = c.row.querySelector('.tv');
-    tv.textContent = Math.round(c.T) + ' °C';
-    tv.classList.toggle('hot', c.T > WARN_T);
+    bar.style.width = clamp((t - 20) / (105 - 20), 0, 1) * 100 + '%';
+    bar.style.background = `hsl(${compHue(t) | 0},80%,58%)`;
+    const el = c.row.querySelector('.v');
+    el.textContent = t.toFixed(0) + ' °C';
+    el.className = 'v' + (t > c.warn ? ' hot' : t > c.warn - 8 ? ' warm' : '');
+    if (t > c.warn) warns.push(`${c.id} is above ${c.warn} °C and would throttle.`);
+  });
+  const wEl = $('#warn');
+  wEl.style.display = warns.length ? 'block' : 'none';
+  wEl.textContent = warns.join(' ');
+
+  const rows = SCENE.fans.filter((f) => f.group === 'case' && f.active).concat(SCENE.fans.filter((f) => f.group !== 'case'));
+  $('#fanList').innerHTML = rows.map((f) => {
+    const mode = f.group === 'case' ? f.mode : '';
+    return `<div class="fanrow"><span>${f.label}</span><span class="m">${mode}</span><b>${f.cfm.toFixed(1)} CFM</b></div>`;
+  }).join('');
+  $('#fanIn').textContent = stats.fanIn.toFixed(1) + ' CFM';
+  $('#fanOut').textContent = stats.fanOut.toFixed(1) + ' CFM';
+
+  const p = $('#pressure');
+  const net = stats.passiveNet;
+  const parts = stats.passive.map((q, g) => [q, GROUPS[g]]).filter(([q]) => Math.abs(q) > 0.5)
+    .sort((a, b) => Math.abs(b[0]) - Math.abs(a[0])).slice(0, 2).map(([, n]) => n).join(' and ');
+  if (net < -1.5) {
+    p.className = 'pressure';
+    p.innerHTML = `<b>Positive pressure.</b> Fans push in more than they pull out, so ${(-net).toFixed(1)} CFM leaks out through the ${parts || 'vents'}. Dust tends to stay out.`;
+  } else if (net > 1.5) {
+    p.className = 'pressure neg';
+    p.innerHTML = `<b>Negative pressure.</b> Exhaust outpaces intake, so ${net.toFixed(1)} CFM is pulled in through the ${parts || 'vents'} without a fan. Expect more dust where it enters.`;
+  } else {
+    p.className = 'pressure';
+    p.innerHTML = '<b>Balanced pressure.</b> Fan intake and exhaust roughly match.';
   }
-  $('#warn').style.display = COMPS.some(c => c.T > WARN_T) ? 'block' : 'none';
+  $('#airAvg').textContent = stats.airAvg.toFixed(1) + ' °C';
+  $('#gpuIn').textContent = stats.gpuIn.toFixed(1) + ' °C';
+  $('#airMax').textContent = stats.airMax.toFixed(1) + ' °C';
+  $('#legLo').textContent = settings.ambient.toFixed(0) + '°';
+  $('#legHi').textContent = (settings.ambient + 25).toFixed(0) + '°';
 }
 
-function resetAir() {
-  for (let i = 0; i < N; i++) { respawn(i); PX[i] = rnd(CASE.x0, CASE.x1); PY[i] = rnd(CASE.y0, CASE.y1); PZ[i] = rnd(CASE.z0, CASE.z1); PS[i] = 0; }
-  for (const c of COMPS) c.T = AMBIENT + 10;
-  tctx.clearRect(0, 0, W, H);
-}
-
-/* ---------- Orbit controls -------------------------------------------- */
+/* ======================== Orbit controls ============================= */
 let dragging = false, lx = 0, ly = 0;
 canvas.addEventListener('pointerdown', (e) => {
   dragging = true; lx = e.clientX; ly = e.clientY;
@@ -492,50 +1322,51 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
   view.yaw += (e.clientX - lx) * 0.006;
-  view.pitch = clamp(view.pitch + (e.clientY - ly) * 0.006, -1.4, 1.4);
+  view.pitch = clamp(view.pitch - (e.clientY - ly) * 0.006, -1.45, 1.45);
   lx = e.clientX; ly = e.clientY;
-  tctx.clearRect(0, 0, W, H);   // trails don't survive a camera change
+  clearTrails();
 });
 const endDrag = () => { dragging = false; canvas.classList.remove('dragging'); };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  view.dist = clamp(view.dist * Math.exp(e.deltaY * 0.001), 60, 300);
+  view.dist = clamp(view.dist * Math.exp(e.deltaY * 0.001), 45, 260);
+  clearTrails();
 }, { passive: false });
 
-/* ---------- Loop ------------------------------------------------------ */
-let last = performance.now(), uiT = 0, fpsF = 0, fpsT = 0;
+/* ============================== Loop ================================== */
+let last = performance.now(), frameNo = 0, fpsF = 0, fpsT = 0, simMs = 0;
 const hint = $('#hint');
-
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (!state.paused) {
-    const sub = 3, h = dt / sub;
-    for (let s = 0; s < sub; s++) { stepParticles(h); stepComponents(h); }
-    tctx.globalCompositeOperation = 'destination-out';
-    tctx.fillStyle = 'rgba(0,0,0,0.1)';
-    tctx.fillRect(0, 0, W, H);
-    drawParticles(tctx);
-    clearAll();
-    ctx.drawImage(trail, 0, 0, W, H);
-    drawCase();
-    drawComponents();
-    drawFans(dt);
+  if (!settings.paused) {
+    const t0 = performance.now();
+    simStep();
+    simMs = simMs * 0.9 + (performance.now() - t0) * 0.1;
+    stepTracers(dt);
+    if (++frameNo % 10 === 0) { measure(); updateStats(); }
+    setupCam();
+    drawTracers();
   }
-  uiT += dt;
-  if (uiT > 0.1) { updateUI(); uiT = 0; }
+  render(dt);
   fpsF++; fpsT += dt;
-  if (fpsT >= 0.5) { hint.textContent = `${N.toLocaleString()} air parcels · ${Math.round(fpsF / fpsT)} fps`; fpsF = 0; fpsT = 0; }
+  if (fpsT >= 0.5) {
+    hint.textContent = `${Math.round(fpsF / fpsT)} fps · solver ${simMs.toFixed(1)} ms/step · ${NC.toLocaleString()} cells · drag to orbit, scroll to zoom`;
+    fpsF = 0; fpsT = 0;
+  }
   requestAnimationFrame(frame);
 }
 
 window.addEventListener('resize', resize);
 resize();
 buildUI();
-resetAir();
-updateUI();
+rebuild();
+updateStats();
+// Hook for automated checks.
+window.__sim = { settings, COMPS, stats, applyScenario, get SCENE() { return SCENE; } };
+window.__view = view;   // used by automated screenshots
 requestAnimationFrame((t) => { last = t; frame(t); });
 })();
 </script>
